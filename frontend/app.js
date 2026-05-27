@@ -1,10 +1,22 @@
-// 記錄目前前端停留在登入還是註冊模式 ("login" 或 "register")
+// ==========================================
+// 全域變數與伺服器設定
+// ==========================================
+const API_BASE_URL = "http://127.0.0.1:5000"; // 後端伺服器的網址
+
+let currentUser = {
+    email: "",
+    name: "",
+    balance: 0
+};
 let currentAuthMode = "login";
 
-// 控制頁籤切換的函數
+let availableStocks = {};
+
+// ==========================================
+// 頁籤切換邏輯 (維持不變)
+// ==========================================
 function switchAuthTab(mode) {
     currentAuthMode = mode;
-    
     const tabLogin = document.getElementById('tab-login');
     const tabRegister = document.getElementById('tab-register');
     const nameField = document.getElementById('name-field');
@@ -13,356 +25,318 @@ function switchAuthTab(mode) {
     if (mode === 'login') {
         tabLogin.classList.add('active');
         tabRegister.classList.remove('active');
-        nameField.classList.add('hidden'); // 登入不需要姓名，隱藏它
+        nameField.classList.add('hidden');
         submitBtn.innerText = "立即登入";
     } else {
         tabLogin.classList.remove('active');
         tabRegister.classList.add('active');
-        nameField.classList.remove('hidden'); // 註冊需要姓名，顯示它
+        nameField.classList.remove('hidden');
         submitBtn.innerText = "建立帳號 (贈送 $1,000,000)";
     }
 }
 
-// 按下大按鈕時，根據目前的模式決定呼叫哪一個原本寫好的 API 邏輯
 function handleAuthSubmit() {
-    if (currentAuthMode === "login") {
-        login();
-    } else {
-        register();
-    }
+    if (currentAuthMode === "login") login();
+    else register();
 }
 
-// 以下保留你原本的 let currentUser = ... 和其他代碼
-
 // ==========================================
-// 全域變數與假資料庫 (Mock Database)
+// 1. 註冊帳號 (串接真實 /api/register)
 // ==========================================
-let currentUser = {
-    email: "",
-    name: "",
-    balance: 0
-};
-
-// 模擬後端的歷史紀錄資料庫
-let mockHistoryData = [
-    { order_id: 1, stock_id: "2330", action: "buy", price: 600.0, quantity: 1000, time: "2026-05-27 10:00:00" }
-];
-let nextOrderId = 2; // 用來產生下一筆訂單的編號
-
-// ==========================================
-// 1. 註冊帳號 (模擬 /api/register)
-// ==========================================
-function register() {
+async function register() {
     const name = document.getElementById('user-name').value;
     const email = document.getElementById('user-email').value;
     const password = document.getElementById('user-password').value;
 
     if (!name || !email || !password) {
-        alert("請填寫完整註冊資訊！");
-        return;
+        alert("請填寫完整註冊資訊！"); return;
     }
 
-    const requestData = { "name": name, "email": email, "password": password };
-    console.log("註冊發送請求 (Mock):", requestData);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        const result = await response.json();
 
-    // 模擬後端回傳：註冊成功給予 1,000,000 初始資金
-    const responseData = { "status": "success", "message": "註冊成功", "balance": 1000000 };
-    
-    if (responseData.status === "success") {
-        alert(responseData.message);
-        currentUser = { email: email, name: name, balance: responseData.balance };
-        showDashboard();
+        if (response.ok && result.status === "success") {
+            alert(result.message); // 會顯示後端產生的 ID00X
+            currentUser = { email: email, name: name, balance: result.balance };
+            showDashboard();
+        } else {
+            alert("註冊失敗：" + result.message);
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
+        alert("無法連線到伺服器，請確認後端已啟動。");
     }
 }
 
 // ==========================================
-// 2. 使用者登入 (模擬 /api/login)
+// 2. 使用者登入 (串接真實 /api/login)
 // ==========================================
-function login() {
+async function login() {
     const email = document.getElementById('user-email').value;
     const password = document.getElementById('user-password').value;
 
     if (!email || !password) {
-        alert("請輸入 Email 與密碼！");
-        return;
+        alert("請輸入 Email 與密碼！"); return;
     }
 
-    const requestData = { "email": email, "password": password };
-    console.log("登入發送請求 (Mock):", requestData);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const result = await response.json();
 
-    // 模擬後端回傳
-    const responseData = { "status": "success", "name": "王大明", "balance": 1000000 };
-
-    if (responseData.status === "success") {
-        alert("登入成功！");
-        currentUser = { email: email, name: responseData.name, balance: responseData.balance };
-        showDashboard();
+        if (response.ok && result.status === "success") {
+            alert("登入成功！");
+            currentUser = { email: email, name: result.name, balance: result.balance };
+            showDashboard();
+        } else {
+            alert("登入失敗：" + result.message);
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
+        alert("無法連線到伺服器。");
     }
 }
 
 // ==========================================
-// 3. 取得股票清單 (模擬 /api/stocks)
+// 3. 取得股票清單 (暫時保留前端假資料，等待後端補上 API)
 // ==========================================
-function getStocks() {
-    // 模擬後端回傳撈取資料庫提供的報價
-    const responseData = {
-        "status": "success",
-        "data": [
-            { "stock_id": "2330", "stock_name": "台積電", "current_price": 600.0 },
-            { "stock_id": "2454", "stock_name": "聯發科", "current_price": 900.0 },
-            { "stock_id": "2317", "stock_name": "鴻海", "current_price": 150.5 }
-        ]
-    };
+// ==========================================
+// 3. 取得股票清單 (串接真實 /api/stocks)
+// ==========================================
+async function getStocks() {
+    try {
+        // 使用 GET 方法呼叫大盤 API
+        const response = await fetch(`${API_BASE_URL}/api/stocks`, {
+            method: 'GET'
+        });
+        const result = await response.json();
 
-    const stockListContent = responseData.data.map(stock => `
-        <tr>
-            <td>${stock.stock_id}</td>
-            <td>${stock.stock_name}</td>
-            <td>${stock.current_price}</td>
-        </tr>
-    `).join('');
+        if (response.ok && result.status === "success") {
+            // 1. 將資料庫傳來的陣列，轉換成 HTML 表格
+            const stockListContent = result.data.map(stock => `
+                <tr>
+                    <td>${stock.stock_id}</td>
+                    <td>${stock.stock_name}</td>
+                    <td>${stock.current_price}</td>
+                </tr>
+            `).join('');
+            document.getElementById('stock-list').innerHTML = stockListContent;
 
-    document.getElementById('stock-list').innerHTML = stockListContent;
+            // 2. 自動更新全域防呆清單！
+            // 把陣列轉換成 { "2330": 600, "2454": 900 } 的格式存起來
+            availableStocks = {};
+            result.data.forEach(stock => {
+                availableStocks[stock.stock_id] = stock.current_price;
+            });
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
+    }
 }
 
 // ==========================================
-// 4. 買入交易核心 (模擬 /api/buy)
+// 4. 買入交易核心 (串接真實 /api/buy)
 // ==========================================
-function buyStock() {
+async function buyStock() {
     const stockId = document.getElementById('buy-stock-id').value;
     const quantity = parseInt(document.getElementById('buy-quantity').value);
     
-    // 簡單防呆檢查
     if (!stockId || !quantity || quantity <= 0) {
-        alert("請輸入正確的股票代號與數量"); 
-        return;
+        alert("請輸入正確的股票代號與數量"); return;
     }
 
-    // 模擬抓取股價 (台積電 600，聯發科 900，鴻海 150.5，其他預設 100)
-    let mockPrice = 100.0;
-    if (stockId === "2330") mockPrice = 600.0;
-    if (stockId === "2454") mockPrice = 900.0;
-    if (stockId === "2317") mockPrice = 150.5;
-    
-    const totalPrice = mockPrice * quantity;
+    if (!availableStocks[stockId]) {
+        alert("交易失敗：查無此股票代號！請確認市場報價區的可交易清單。");
+        return; 
+    }
 
-    const requestData = {
-        "email": currentUser.email,
-        "stock_id": stockId,
-        "quantity": quantity,
-        "total_price": totalPrice
-    };
-    console.log("買入發送請求 (Mock):", requestData);
-
-    // 模擬後端檢查餘額與回傳結果
-    if (currentUser.balance >= totalPrice) {
-        const remainingBalance = currentUser.balance - totalPrice;
-        const responseData = { "status": "success", "message": "交易成功", "remaining_balance": remainingBalance };
-        
-        alert(responseData.message);
-        
-        // 1. 更新本地餘額與畫面
-        currentUser.balance = responseData.remaining_balance;
-        updateBalanceDisplay();
-
-        // 2. 產生現在的時間字串 (格式: YYYY-MM-DD HH:MM:SS)
-        const now = new Date();
-        const timeString = now.getFullYear() + "-" + 
-                           String(now.getMonth() + 1).padStart(2, '0') + "-" + 
-                           String(now.getDate()).padStart(2, '0') + " " + 
-                           String(now.getHours()).padStart(2, '0') + ":" + 
-                           String(now.getMinutes()).padStart(2, '0') + ":" + 
-                           String(now.getSeconds()).padStart(2, '0');
-
-        // 3. 把新訂單存入假的資料庫陣列
-        mockHistoryData.push({
-            order_id: nextOrderId++,
-            stock_id: stockId,
-            action: "buy",
-            price: mockPrice,
-            quantity: quantity,
-            time: timeString
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/buy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentUser.email, stock_id: stockId, quantity: quantity })
         });
+        const result = await response.json();
 
-        // 4. 交易成功後，立刻刷新歷史紀錄表格
-        getHistory();
-        updateInventoryDisplay();
+        if (response.ok && result.status === "success") {
+            alert(result.message);
+            // 根據後端回傳的最新餘額更新畫面
+            currentUser.balance = result.remaining_balance; 
+            updateBalanceDisplay();
+            
+            // 重新向後端索取最新的歷史紀錄與庫存
+            getHistory();
+            updateInventoryDisplay();
 
-        // 5. 清空輸入框
-        document.getElementById('buy-stock-id').value = '';
-        document.getElementById('buy-quantity').value = '';
-
-    } else {
-        alert("交易失敗：餘額不足！");
+            document.getElementById('buy-stock-id').value = '';
+            document.getElementById('buy-quantity').value = '';
+        } else {
+            alert("交易失敗：" + result.message);
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
     }
 }
 
 // ==========================================
-// 5. 取得歷史紀錄 (模擬 /api/history)
+// 5. 賣出股票 (串接真實 /api/sell)
 // ==========================================
-function getHistory() {
-    console.log("獲取歷史發送請求 (Mock):", { "email": currentUser.email });
-
-    // 讀取我們模擬的陣列，回傳給畫面
-    const responseData = {
-        "status": "success",
-        "data": mockHistoryData
-    };
-
-    // 如果歷史紀錄是空的，顯示提示
-    if (responseData.data.length === 0) {
-        document.getElementById('history-list').innerHTML = `<tr><td colspan="6" style="text-align: center;">尚無交易紀錄</td></tr>`;
-        return;
+async function sellStock() {
+    const stockId = document.getElementById('sell-stock-id').value;
+    const quantity = parseInt(document.getElementById('sell-quantity').value);
+    
+    if (!stockId || !quantity || quantity <= 0) {
+        alert("請輸入正確的股票代號與數量"); return;
+    }
+    if (!availableStocks[stockId]) {
+        alert("交易失敗：查無此股票代號！請確認市場報價區的可交易清單。");
+        return; 
     }
 
-    // 將資料陣列轉換成 HTML 表格內容，反轉陣列讓最新紀錄排在最上面
-    const historyListContent = [...responseData.data].reverse().map(record => `
-        <tr>
-            <td>${record.order_id}</td>
-            <td>${record.stock_id}</td>
-            <td><span class="badge ${record.action === 'buy' ? 'badge-buy' : 'badge-sell'}">${record.action}</span></td>
-            <td>${record.price}</td>
-            <td>${record.quantity}</td>
-            <td>${record.time}</td>
-        </tr>
-    `).join('');
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/sell`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentUser.email, stock_id: stockId, quantity: quantity })
+        });
+        const result = await response.json();
 
-    document.getElementById('history-list').innerHTML = historyListContent;
+        if (response.ok && result.status === "success") {
+            alert(result.message);
+            currentUser.balance = result.remaining_balance;
+            updateBalanceDisplay();
+            
+            getHistory();
+            updateInventoryDisplay();
+
+            document.getElementById('sell-stock-id').value = '';
+            document.getElementById('sell-quantity').value = '';
+        } else {
+            alert("交易失敗：" + result.message);
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
+    }
 }
 
 // ==========================================
-// 7. 計算並更新庫存顯示 (進階功能)
+// 6. 取得歷史紀錄 (串接真實 /api/history)
 // ==========================================
-function updateInventoryDisplay() {
-    const inventory = {}; // 用來暫存各檔股票的數量，格式如：{ "2330": 1000, "2454": 500 }
+async function getHistory() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/history`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentUser.email })
+        });
+        const result = await response.json();
 
-    // 1. 掃描所有歷史紀錄來結算數量
-    mockHistoryData.forEach(record => {
-        // 如果這個股票代號還沒出現過，先把它歸零
-        if (!inventory[record.stock_id]) {
-            inventory[record.stock_id] = 0;
+        if (result.data.length === 0) {
+            document.getElementById('history-list').innerHTML = `<tr><td colspan="6" style="text-align: center;">尚無交易紀錄</td></tr>`;
+            return;
         }
 
-        // 買入就加，賣出就減
-        if (record.action === "buy") {
-            inventory[record.stock_id] += record.quantity;
-        } else if (record.action === "sell") {
-            inventory[record.stock_id] -= record.quantity;
-        }
-    });
+        // 注意：後端傳來的時間欄位叫做 order_time
+        const historyListContent = result.data.map(record => `
+            <tr>
+                <td>${record.order_id || '-'}</td>
+                <td>${record.stock_id}</td>
+                <td><span class="badge ${record.action === 'buy' ? 'badge-buy' : 'badge-sell'}">${record.action}</span></td>
+                <td>${record.price}</td>
+                <td>${record.quantity}</td>
+                <td>${record.order_time}</td>
+            </tr>
+        `).join('');
 
-    // 2. 把算好的資料變成 HTML
-    let inventoryHtml = "";
-    for (const stockId in inventory) {
-        // 只顯示持有數量大於 0 的股票
-        if (inventory[stockId] > 0) {
-            inventoryHtml += `
-                <tr>
-                    <td>${stockId}</td>
-                    <td style="font-weight: bold; color: #2563eb;">${inventory[stockId].toLocaleString()}</td>
-                </tr>
-            `;
-        }
+        document.getElementById('history-list').innerHTML = historyListContent;
+    } catch (error) {
+        console.error("連線錯誤:", error);
     }
+}
 
-    // 如果全部賣光或是還沒買過，顯示提示
-    if (inventoryHtml === "") {
-        inventoryHtml = `<tr><td colspan="2" style="text-align: center; color: #64748b;">目前無持有股票</td></tr>`;
+// ==========================================
+// 7. 取得庫存顯示 (串接真實 /api/inventory)
+// ==========================================
+async function updateInventoryDisplay() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/inventory`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentUser.email })
+        });
+        const result = await response.json();
+
+        let inventoryHtml = "";
+        
+        if (result.data && result.data.length > 0) {
+            // 注意：後端傳來的數量欄位叫做 total_quantity
+            result.data.forEach(item => {
+                inventoryHtml += `
+                    <tr>
+                        <td>${item.stock_id} (${item.stock_name})</td>
+                        <td style="font-weight: bold; color: #2563eb;">${item.total_quantity.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            inventoryHtml = `<tr><td colspan="2" style="text-align: center; color: #64748b;">目前無持有股票</td></tr>`;
+        }
+
+        document.getElementById('inventory-list').innerHTML = inventoryHtml;
+    } catch (error) {
+        console.error("連線錯誤:", error);
     }
-
-    document.getElementById('inventory-list').innerHTML = inventoryHtml;
 }
 
 // ==========================================
 // 畫面控制與 UI 小工具
 // ==========================================
 function showDashboard() {
-    // 隱藏登入區塊，顯示大廳與歷史紀錄
     document.getElementById('auth-section').classList.add('hidden');
     document.getElementById('dashboard-section').classList.remove('hidden');
     document.getElementById('history-section').classList.remove('hidden');
     
-    // 更新畫面上的人名與餘額
     document.getElementById('display-name').innerText = currentUser.name;
     updateBalanceDisplay();
     
-    // 自動載入股票清單與歷史紀錄
     getStocks();
     getHistory();
     updateInventoryDisplay();
 }
 
 function updateBalanceDisplay() {
-    // 加上 toLocaleString() 讓數字有千分位逗號 (例如: 1,000,000)
     document.getElementById('display-balance').innerText = currentUser.balance.toLocaleString();
 }
 
 // ==========================================
-// 6. 賣出股票與庫存檢查 (模擬 /api/sell)
+// 8. 登出功能
 // ==========================================
-function sellStock() {
-    const stockId = document.getElementById('sell-stock-id').value;
-    const quantity = parseInt(document.getElementById('sell-quantity').value);
+function logout() {
+    // 1. 清空本地的暫存使用者資料
+    currentUser = {
+        email: "",
+        name: "",
+        balance: 0
+    };
     
-    if (!stockId || !quantity || quantity <= 0) {
-        alert("請輸入正確的股票代號與數量"); 
-        return;
-    }
-
-    // 【核心進階功能：庫存檢查】
-    // 遍歷歷史紀錄，計算該使用者目前持有這檔股票的數量
-    let ownedQuantity = 0;
-    mockHistoryData.forEach(record => {
-        if (record.stock_id === stockId) {
-            if (record.action === "buy") ownedQuantity += record.quantity;
-            if (record.action === "sell") ownedQuantity -= record.quantity;
-        }
-    });
-
-    if (quantity > ownedQuantity) {
-        alert(`交易失敗：庫存不足！\n你目前只有 ${ownedQuantity} 股 ${stockId}，無法賣出 ${quantity} 股。`);
-        return;
-    }
-
-    // 模擬抓取股價 (與買入邏輯共用)
-    let mockPrice = 100.0;
-    if (stockId === "2330") mockPrice = 600.0;
-    if (stockId === "2454") mockPrice = 900.0;
-    if (stockId === "2317") mockPrice = 150.5;
+    // 2. 清空密碼輸入框 (保護隱私，Email 可以留著方便下次登入)
+    document.getElementById('user-password').value = '';
     
-    // 計算賣出獲得的總金額
-    const totalGain = mockPrice * quantity;
-
-    // 1. 賣出股票，餘額增加
-    currentUser.balance += totalGain;
-    updateBalanceDisplay();
-
-    // 2. 產生時間字串
-    const now = new Date();
-    const timeString = now.getFullYear() + "-" + 
-                       String(now.getMonth() + 1).padStart(2, '0') + "-" + 
-                       String(now.getDate()).padStart(2, '0') + " " + 
-                       String(now.getHours()).padStart(2, '0') + ":" + 
-                       String(now.getMinutes()).padStart(2, '0') + ":" + 
-                       String(now.getSeconds()).padStart(2, '0');
-
-    // 3. 寫入歷史紀錄 (action 設為 "sell")
-    mockHistoryData.push({
-        order_id: nextOrderId++,
-        stock_id: stockId,
-        action: "sell",
-        price: mockPrice,
-        quantity: quantity,
-        time: timeString
-    });
-
-    // 4. 刷新歷史紀錄表格 (我們之前寫好的 CSS 會自動把 sell 標籤變成紅色)
-    getHistory();
-    updateInventoryDisplay();
-
-    // 5. 清空輸入框
-    document.getElementById('sell-stock-id').value = '';
-    document.getElementById('sell-quantity').value = '';
-
-    alert(`交易成功！成功賣出 ${quantity} 股 ${stockId}，獲得 $${totalGain.toLocaleString()}`);
+    // 3. 隱藏交易大廳與歷史紀錄，重新顯示登入區塊
+    document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('history-section').classList.add('hidden');
+    document.getElementById('auth-section').classList.remove('hidden');
+    
+    // 4. 切換回登入頁籤 (以防使用者是在註冊畫面登出的)
+    switchAuthTab('login');
+    
+    alert("已成功登出！期待您再次回來交易。");
 }

@@ -47,7 +47,11 @@
         </div>
 
         <div id="dashboard-section" class="section hidden">
-            <h2>交易大廳</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 style="margin-bottom: 0;">交易大廳</h2>
+                <button id="btn-logout" onclick="logout()">登出帳號</button>
+            </div>
+            
             <p>歡迎，<span id="display-name"></span>！</p>
             <p>目前可用資金：$<span id="display-balance"></span></p>
 

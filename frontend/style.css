@@ -402,3 +402,20 @@ tbody tr:last-child td {
         flex-direction: column;
     }
 }
+
+/* ==========================================
+   新增：登出按鈕樣式
+   ========================================== */
+   #btn-logout {
+    background-color: transparent;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    box-shadow: none;
+}
+#btn-logout:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-color: #94a3b8;
+}

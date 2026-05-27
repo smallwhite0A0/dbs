@@ -1,7 +1,9 @@
 import sqlite3
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # 【新增】引入 CORS 套件
 
 app = Flask(__name__)
+CORS(app)  # 【新增】告訴 Flask 允許所有來源 (包含你的 5500) 來連線
 DATABASE = 'stock_market.db'
 
 # 建立資料庫連線的小工具
@@ -221,6 +223,29 @@ def inventory():
         return jsonify({"status": "success", "data": records})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
+    finally:
+        conn.close()
+
+# 7. 查詢所有股票最新行情 API (大盤資訊)
+@app.route('/api/stocks', methods=['GET'])
+def get_stocks():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # 直接把 STOCK 表裡面的代號、名稱、現價全部撈出來
+        cursor.execute("SELECT stock_id, stock_name, current_price FROM STOCK")
+        
+        # 轉換成 JSON 格式的陣列
+        stocks = [dict(row) for row in cursor.fetchall()]
+        
+        return jsonify({
+            "status": "success", 
+            "message": "大盤行情獲取成功",
+            "data": stocks
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         conn.close()
 
