@@ -1,7 +1,9 @@
 import sqlite3
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # 【新增】引入 CORS 套件
 
 app = Flask(__name__)
+CORS(app)  # 【新增】告訴 Flask 允許所有來源 (包含你的 5500) 來連線
 DATABASE = 'stock_market.db'
 
 # 建立資料庫連線的小工具
