@@ -1,0 +1,54 @@
+### 測試 1：註冊新帳號
+POST http://127.0.0.1:5000/api/register
+Content-Type: application/json
+
+{
+  "name": "Ray",
+  "email": "esoe@example.com",
+  "password": "password123"
+}
+
+### 測試 2：使用者登入
+POST http://127.0.0.1:5000/api/login
+Content-Type: application/json
+
+{
+  "email": "esoe@example.com",
+  "password": "password123"
+}
+
+### 測試 3：買入股票 (Transaction 核心測試)
+POST http://127.0.0.1:5000/api/buy
+Content-Type: application/json
+
+{
+  "email": "esoe@example.com",
+  "stock_id": "2330",
+  "quantity": 500
+}
+
+### 測試 4：賣出股票 (進階功能測試)
+POST http://127.0.0.1:5000/api/sell
+Content-Type: application/json
+
+{
+  "email": "esoe@example.com",
+  "stock_id": "2330",
+  "quantity": 100
+}
+
+### 測試 5：查詢歷史紀錄
+POST http://127.0.0.1:5000/api/history
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### 測試 6：查詢目前庫存
+POST http://127.0.0.1:5000/api/inventory
+Content-Type: application/json
+
+{
+  "email": "esoe@example.com"
+}

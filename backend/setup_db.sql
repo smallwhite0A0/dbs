@@ -1,0 +1,12 @@
+ALTER TABLE User Add COLUMN email TEXT;
+ALTER TABLE User ADD COLUMN password TEXT;
+
+CREATE TABLE Transaction_History (
+    order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    stock_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    price REAL NOT NULL,
+    quantity INTEGER NOT NULL,
+    order_time DATETIME DEFAULT CURRENT_TIMESTAMP
+);
