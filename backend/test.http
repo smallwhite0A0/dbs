@@ -52,3 +52,6 @@ Content-Type: application/json
 {
   "email": "esoe@example.com"
 }
+
+### 測試 7：查詢股票大盤行情
+GET http://127.0.0.1:5000/api/stocks

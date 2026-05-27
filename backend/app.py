@@ -224,6 +224,29 @@ def inventory():
     finally:
         conn.close()
 
+# 7. 查詢所有股票最新行情 API (大盤資訊)
+@app.route('/api/stocks', methods=['GET'])
+def get_stocks():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # 直接把 STOCK 表裡面的代號、名稱、現價全部撈出來
+        cursor.execute("SELECT stock_id, stock_name, current_price FROM STOCK")
+        
+        # 轉換成 JSON 格式的陣列
+        stocks = [dict(row) for row in cursor.fetchall()]
+        
+        return jsonify({
+            "status": "success", 
+            "message": "大盤行情獲取成功",
+            "data": stocks
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
 @app.route('/test_db', methods=['GET'])
 def test_db():
     conn = get_db()
