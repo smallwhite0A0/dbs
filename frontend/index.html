@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票交易平台</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ticker-wrap">
+        <div class="ticker">
+            <span class="ticker-item"><span class="ticker-up">▲ 台積電 (2330) 600.0 (+1.2%)</span></span>
+            <span class="ticker-item"><span class="ticker-down">▼ 聯發科 (2454) 900.0 (-0.5%)</span></span>
+            <span class="ticker-item"><span class="ticker-up">▲ 鴻海 (2317) 150.5 (+2.1%)</span></span>
+            <span class="ticker-item"><span class="ticker-up">▲ 富邦金 (2881) 75.2 (+0.8%)</span></span>
+            <span class="ticker-item">※ 系統公告：期末專案大成功！台股交易系統連線正常 ※</span>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div id="auth-section" class="section">
+            <div class="auth-tabs">
+                <button id="tab-login" class="auth-tab active" onclick="switchAuthTab('login')">會員登入</button>
+                <button id="tab-register" class="auth-tab" onclick="switchAuthTab('register')">新用戶註冊</button>
+            </div>
+            
+            <div id="auth-form">
+                <div id="name-field" class="form-group hidden">
+                    <label>真實姓名</label>
+                    <input type="text" id="user-name" placeholder="請輸入您的姓名">
+                </div>
+                
+                <div class="form-group">
+                    <label>電子信箱 (Email)</label>
+                    <input type="email" id="user-email" placeholder="example@email.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>帳號密碼</label>
+                    <input type="password" id="user-password" placeholder="請輸入密碼">
+                </div>
+                
+                <br>
+                <button id="btn-auth-submit" onclick="handleAuthSubmit()">立即登入</button>
+            </div>
+        </div>
+
+        <div id="dashboard-section" class="section hidden">
+            <h2>交易大廳</h2>
+            <p>歡迎，<span id="display-name"></span>！</p>
+            <p>目前可用資金：$<span id="display-balance"></span></p>
+
+            <div class="info-panels-container">
+                
+                <div class="info-panel">
+                    <h3>市場報價</h3>
+                    <table id="stock-table">
+                        <thead>
+                            <tr>
+                                <th>代號</th>
+                                <th>名稱</th>
+                                <th>目前股價</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-list"></tbody>
+                    </table>
+                </div>
+
+                <div class="info-panel">
+                    <h3>我的庫存</h3>
+                    <table id="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>股票代號</th>
+                                <th>持有股數</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list"></tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class="trade-action-container">
+                
+                <div class="trade-box">
+                    <h3>買入股票</h3>
+                    <input type="text" id="buy-stock-id" placeholder="輸入股票代號 (如: 2330)">
+                    <input type="number" id="buy-quantity" placeholder="輸入數量">
+                    <button onclick="buyStock()">送出買單</button>
+                </div>
+
+                <div class="trade-box">
+                    <h3>賣出股票 </h3>
+                    <input type="text" id="sell-stock-id" placeholder="輸入股票代號 (如: 2330)">
+                    <input type="number" id="sell-quantity" placeholder="輸入數量">
+                    <button id="btn-sell" onclick="sellStock()">送出賣單</button>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="history-section" class="section hidden">
+            <h2>歷史成交明細</h2>
+            <button onclick="getHistory()">刷新紀錄</button>
+            <table>
+                <thead>
+                    <tr>
+                        <th>訂單編號</th>
+                        <th>股票代號</th>
+                        <th>動作</th>
+                        <th>成交價</th>
+                        <th>數量</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody id="history-list"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

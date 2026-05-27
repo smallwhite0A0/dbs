@@ -1,0 +1,404 @@
+/* ==========================================
+   全域重設與字體樣式
+   ========================================== */
+   * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #334155;
+    line-height: 1.6;
+    padding: 80px 20px 40px 20px; /* 上方留 80px 給跑馬燈 */
+    /* 會呼吸的微漸層動態背景 */
+    background: linear-gradient(-45deg, #e2e8f0, #f8fafc, #cbd5e1, #f1f5f9);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    min-height: 100vh;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* 主容器 */
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* ==========================================
+   標題與層級樣式
+   ========================================== */
+h2 {
+    color: #0f172a;
+    font-size: 1.6rem;
+    margin-bottom: 24px;
+    font-weight: 600;
+    position: relative;
+    padding-bottom: 10px;
+}
+
+h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 50px;
+    height: 4px;
+    background-color: #2563eb;
+    border-radius: 2px;
+}
+
+h3 {
+    color: #1e293b;
+    font-size: 1.2rem;
+    margin: 30px 0 16px 0;
+    font-weight: 600;
+}
+
+p {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin-bottom: 12px;
+}
+
+/* ==========================================
+   卡片式區塊設計 (毛玻璃特效)
+   ========================================== */
+.section {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 28px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    /* 進場滑動動畫 */
+    animation: slideUpFade 0.6s ease-out forwards;
+}
+
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ==========================================
+   輸入框與表單設計
+   ========================================== */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"] {
+    width: 100%;
+    max-width: 360px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1e293b;
+    background-color: #f8fafc;
+    transition: all 0.2s ease;
+    display: block;
+}
+
+input:focus {
+    background-color: #ffffff;
+    border-color: #2563eb;
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+/* ==========================================
+   按鈕系統設計
+   ========================================== */
+button {
+    color: #ffffff;
+    border: none;
+    padding: 12px 24px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-right: 8px;
+    display: inline-block;
+}
+
+#auth-section button {
+    background-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+#auth-section button:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+#dashboard-section button {
+    background-color: #10b981;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+#dashboard-section button:hover {
+    background-color: #059669;
+    transform: translateY(-1px);
+}
+
+#history-section button {
+    background-color: #64748b;
+    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.15);
+}
+#history-section button:hover {
+    background-color: #475569;
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(1px) !important;
+}
+
+/* ==========================================
+   高質感表格設計
+   ========================================== */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 20px 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    text-align: left;
+    padding: 16px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+td {
+    padding: 16px;
+    font-size: 0.95rem;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    background-color: #ffffff;
+}
+
+tbody tr:hover td {
+    background-color: #f8fafc;
+    transition: background-color 0.15s ease;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ==========================================
+   特定的數字與動態資料強調
+   ========================================== */
+#display-name {
+    font-weight: 600;
+    color: #2563eb;
+}
+
+#display-balance {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #10b981;
+    font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+    display: inline-block;
+    margin: 8px 0 20px 0;
+}
+
+/* ==========================================
+   頂部跑馬燈樣式 (Ticker)
+   ========================================== */
+.ticker-wrap {
+    width: 100%;
+    overflow: hidden;
+    background-color: #0f172a;
+    padding: 10px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.ticker {
+    display: inline-block;
+    white-space: nowrap;
+    padding-left: 100%;
+    animation: tickerScroll 20s linear infinite;
+}
+
+.ticker-item {
+    padding: 0 40px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #e2e8f0;
+}
+
+.ticker-up { color: #34d399; }
+.ticker-down { color: #f87171; }
+
+@keyframes tickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+
+/* ==========================================
+   歷史紀錄彩色標籤 (Badges)
+   ========================================== */
+.badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.badge-buy {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #34d399;
+}
+
+.badge-sell {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #f87171;
+}
+/* ==========================================
+   新增：賣出按鈕專屬樣式
+   ========================================== */
+   #btn-sell {
+    background-color: #ef4444; /* 警示紅 */
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+#btn-sell:hover {
+    background-color: #dc2626;
+    transform: translateY(-1px);
+}
+
+/* ==========================================
+   新增：買賣區塊左右並排排版 (Flexbox)
+   ========================================== */
+   .trade-action-container {
+    display: flex;       /* 啟動 Flexbox 排版引擎 */
+    gap: 24px;           /* 設定左右兩個區塊的間距 */
+    margin-top: 20px;
+}
+
+.trade-box {
+    flex: 1;             /* 讓買入與賣出各佔 50% 寬度 */
+    background-color: rgba(255, 255, 255, 0.4); /* 加上微透明的底色 */
+    padding: 24px;       /* 內縮留白 */
+    border-radius: 12px; /* 圓角 */
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* 取消區塊內標題的預設上方間距，讓對齊更完美 */
+.trade-box h3 {
+    margin-top: 0;
+}
+
+/* 確保手機螢幕變窄時，自動變回上下排列以免破版 */
+@media (max-width: 768px) {
+    .trade-action-container {
+        flex-direction: column;
+    }
+}
+
+/* ==========================================
+   新增：登入/註冊頁籤切換樣式 (Auth Tabs)
+   ========================================== */
+   .auth-tabs {
+    display: flex;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 28px;
+}
+
+.auth-tab {
+    flex: 1;
+    background: none !important;
+    color: #64748b !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 14px 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    border-bottom: 2px solid transparent !important;
+    margin-right: 0;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+/* 當前選中的頁籤，會亮起科技藍底線 */
+.auth-tab.active {
+    color: #2563eb !important;
+    border-bottom-color: #2563eb !important;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+    text-align: left;
+}
+
+#btn-auth-submit {
+    width: 100%;
+    max-width: 360px;
+    background-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+#btn-auth-submit:hover {
+    background-color: #1d4ed8;
+}
+
+/* ==========================================
+   新增：資訊看板左右並排排版 (報價與庫存)
+   ========================================== */
+   .info-panels-container {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.info-panel {
+    flex: 1;
+    background-color: rgba(255, 255, 255, 0.4);
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.info-panel h3 {
+    margin-top: 0;
+}
+
+/* 響應式：手機畫面改為上下排列 */
+@media (max-width: 768px) {
+    .info-panels-container {
+        flex-direction: column;
+    }
+}
