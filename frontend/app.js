@@ -105,41 +105,76 @@ async function login() {
     }
 }
 
+
 // ==========================================
-// 3. 取得股票清單 (暫時保留前端假資料，等待後端補上 API)
+// 3. 取得股票清單 (升級版：大盤模擬與視窗分類)
 // ==========================================
-// ==========================================
-// 3. 取得股票清單 (串接真實 /api/stocks)
-// ==========================================
+// 定義你要顯示在首頁的 5 大核心權值股
+const MAJOR_STOCKS = ["2330", "2317", "2454", "7769", "8299","0050","3131"];
+
 async function getStocks() {
     try {
-        // 使用 GET 方法呼叫大盤 API
-        const response = await fetch(`${API_BASE_URL}/api/stocks`, {
-            method: 'GET'
+        const response = await fetch(`${API_BASE_URL}/api/stocks`, { 
+            method: 'GET',
+            cache: 'no-store' 
         });
         const result = await response.json();
 
         if (response.ok && result.status === "success") {
-            // 1. 將資料庫傳來的陣列，轉換成 HTML 表格
-            const stockListContent = result.data.map(stock => `
-                <tr>
-                    <td>${stock.stock_id}</td>
-                    <td>${stock.stock_name}</td>
-                    <td>${stock.current_price}</td>
-                </tr>
-            `).join('');
-            document.getElementById('stock-list').innerHTML = stockListContent;
+            let majorListHtml = "";
+            let allListHtml = "";
+            let weightSum = 0; // 用來計算虛擬加權指數
 
-            // 2. 自動更新全域防呆清單！
-            // 把陣列轉換成 { "2330": 600, "2454": 900 } 的格式存起來
             availableStocks = {};
+
+            // 迴圈掃描後端傳來的每一檔股票
             result.data.forEach(stock => {
                 availableStocks[stock.stock_id] = stock.current_price;
+
+                // 產生全部股票的 HTML (放在彈出視窗用)
+                allListHtml += `
+                    <tr>
+                        <td>${stock.stock_id}</td>
+                        <td>${stock.stock_name}</td>
+                        <td style="font-weight: bold;">$${stock.current_price}</td>
+                    </tr>
+                `;
+
+                // 判斷這檔股票是不是我們定義的 5 大權值股？
+                if (MAJOR_STOCKS.includes(stock.stock_id)) {
+                    majorListHtml += `
+                        <tr>
+                            <td>${stock.stock_id}</td>
+                            <td style="font-weight:bold; color: #2563eb;">${stock.stock_name}</td>
+                            <td style="font-weight:bold;">$${stock.current_price}</td>
+                        </tr>
+                    `;
+                    // 把權值股的價格累加，用來模擬大盤波動
+                    weightSum += stock.current_price;
+                }
             });
+
+            // 將 HTML 塞入對應的表格中
+            document.getElementById('stock-list').innerHTML = majorListHtml;
+            document.getElementById('all-stock-list').innerHTML = allListHtml;
+
+            // 🔮 神奇的大盤模擬公式：基期 15000 點 + (權值股總和 x 2.8倍)
+            // 這樣只要台積電跳動，大盤指數就會跟著逼真地跳動！
+            const simulatedTaiex = 15000 + (weightSum * 2.8);
+            document.getElementById('taiex-index').innerText = simulatedTaiex.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
     } catch (error) {
         console.error("連線錯誤:", error);
     }
+}
+
+// 彈出視窗的控制開關
+function openAllStocksModal() {
+    document.getElementById('all-stocks-modal').classList.remove('hidden');
+}
+
+function closeAllStocksModal() {
+    document.getElementById('all-stocks-modal').classList.add('hidden');
 }
 
 // ==========================================
@@ -263,7 +298,7 @@ async function getHistory() {
 }
 
 // ==========================================
-// 7. 取得庫存顯示 (串接真實 /api/inventory)
+// 7. 取得庫存與損益顯示 (終極專業版)
 // ==========================================
 async function updateInventoryDisplay() {
     try {
@@ -275,22 +310,52 @@ async function updateInventoryDisplay() {
         const result = await response.json();
 
         let inventoryHtml = "";
+        let realizedHtml = "";
         
         if (result.data && result.data.length > 0) {
-            // 注意：後端傳來的數量欄位叫做 total_quantity
             result.data.forEach(item => {
-                inventoryHtml += `
-                    <tr>
-                        <td>${item.stock_id} (${item.stock_name})</td>
-                        <td style="font-weight: bold; color: #2563eb;">${item.total_quantity.toLocaleString()}</td>
-                    </tr>
-                `;
-            });
-        } else {
-            inventoryHtml = `<tr><td colspan="2" style="text-align: center; color: #64748b;">目前無持有股票</td></tr>`;
-        }
+                // 輔助函數：處理台股紅綠顏色與加號顯示
+                const getPnLColor = (num) => num > 0 ? '#ef4444' : (num < 0 ? '#22c55e' : '#333');
+                const formatNum = (num) => num > 0 ? `+${num.toLocaleString()}` : num.toLocaleString();
 
+                // --- 1. 處理未實現庫存 (只要還有餘額) ---
+                if (item.inventory > 0) {
+                    const unrealizedColor = getPnLColor(item.unrealized_pnl);
+                    inventoryHtml += `
+                        <tr>
+                            <td style="font-weight: bold;">${item.stock_name} (${item.stock_id})</td>
+                            <td>${item.inventory.toLocaleString()} 股</td>
+                            <td>$${item.avg_cost}</td>
+                            <td>$${item.current_price}</td>
+                            <td style="color: ${unrealizedColor}; font-weight: bold;">${formatNum(item.unrealized_pnl)}</td>
+                            <td style="color: ${unrealizedColor}; font-weight: bold;">${formatNum(item.unrealized_pnl_pct)}%</td>
+                        </tr>
+                    `;
+                }
+
+                // --- 2. 處理已實現損益 (只要有賣出過) ---
+                if (item.sold_qty > 0) {
+                    const realizedColor = getPnLColor(item.realized_pnl);
+                    realizedHtml += `
+                        <tr>
+                            <td style="font-weight: bold;">${item.stock_name} (${item.stock_id})</td>
+                            <td>$${item.avg_cost}</td>
+                            <td>$${item.avg_sell_price}</td>
+                            <td style="color: ${realizedColor}; font-weight: bold;">${formatNum(item.realized_pnl)}</td>
+                            <td style="color: ${realizedColor}; font-weight: bold;">${formatNum(item.realized_pnl_pct)}%</td>
+                        </tr>
+                    `;
+                }
+            });
+        } 
+
+        // 如果沒有資料時的防呆顯示
+        if (!inventoryHtml) inventoryHtml = `<tr><td colspan="6" style="text-align: center; color: #64748b;">目前無持有股票</td></tr>`;
+        if (!realizedHtml) realizedHtml = `<tr><td colspan="5" style="text-align: center; color: #64748b;">目前無歷史結算紀錄</td></tr>`;
+
+        // 渲染到網頁上
         document.getElementById('inventory-list').innerHTML = inventoryHtml;
+        document.getElementById('realized-list').innerHTML = realizedHtml;
     } catch (error) {
         console.error("連線錯誤:", error);
     }
@@ -310,6 +375,9 @@ function showDashboard() {
     getStocks();
     getHistory();
     updateInventoryDisplay();
+
+    // 👇 新增這行：登入成功後，開始讓大盤自動跳動！
+    startMarketSimulation();
 }
 
 function updateBalanceDisplay() {
@@ -320,6 +388,9 @@ function updateBalanceDisplay() {
 // 8. 登出功能
 // ==========================================
 function logout() {
+    // 👇 新增這行：登出時停止大盤跳動
+    if (marketInterval) clearInterval(marketInterval);
+
     // 1. 清空本地的暫存使用者資料
     currentUser = {
         email: "",
@@ -339,4 +410,32 @@ function logout() {
     switchAuthTab('login');
     
     alert("已成功登出！期待您再次回來交易。");
+}
+
+// ==========================================
+// 9. 模擬大盤自動造市 (進階創意功能)
+// ==========================================
+let marketInterval = null; // 用來存放定時器，方便之後關閉
+
+function startMarketSimulation() {
+    // 為了防呆，啟動前先清空舊的定時器，避免重複執行
+    if (marketInterval) {
+        clearInterval(marketInterval);
+    }
+
+    // 每 5000 毫秒 (5秒) 執行一次大括號內的動作
+    marketInterval = setInterval(async () => {
+        try {
+            // 1. 呼叫後端造市 API，請老天爺幫股票洗牌
+            await fetch(`${API_BASE_URL}/api/simulate_market`, { method: 'POST' });
+            
+            // 2. 價格洗牌後，直接呼叫你寫好的 getStocks() 重新抓取並更新網頁畫面！
+            getStocks(); 
+            // 👇 新增這行！更新右邊的庫存與未實現損益
+            updateInventoryDisplay();
+            
+        } catch (error) {
+            console.error("造市模擬連線錯誤:", error);
+        }
+    }, 5000);
 }

@@ -1,4 +1,5 @@
 import sqlite3
+import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # 【新增】引入 CORS 套件
 
@@ -192,7 +193,7 @@ def sell_stock():
     finally:
         conn.close()
 
-# 6. 查詢庫存 API (不需新增 Table，直接動態計算)
+# 6. 查詢庫存與損益 API (進階功能：未實現與已實現損益)
 @app.route('/api/inventory', methods=['POST'])
 def inventory():
     email = request.json['email']
@@ -201,26 +202,62 @@ def inventory():
     cursor = conn.cursor()
     
     try:
-        # 使用 JOIN 結合交易表與股票表，並用 GROUP BY 計算每支股票的結餘
+        # 1. 把該使用者所有的買賣紀錄，依照股票分組撈出來，並計算總投資額與總賣出額
         cursor.execute("""
             SELECT 
                 t.stock_id, 
                 s.stock_name, 
                 s.current_price,
-                SUM(CASE WHEN t.action = 'buy' THEN t.quantity 
-                         WHEN t.action = 'sell' THEN -t.quantity 
-                         ELSE 0 END) as total_quantity
+                SUM(CASE WHEN t.action = 'buy' THEN t.quantity ELSE 0 END) as total_bought_qty,
+                SUM(CASE WHEN t.action = 'buy' THEN t.price * t.quantity ELSE 0 END) as total_invested,
+                SUM(CASE WHEN t.action = 'sell' THEN t.quantity ELSE 0 END) as total_sold_qty,
+                SUM(CASE WHEN t.action = 'sell' THEN t.price * t.quantity ELSE 0 END) as total_revenue
             FROM Transaction_History t
             JOIN STOCK s ON t.stock_id = s.stock_id
             WHERE t.email = ?
             GROUP BY t.stock_id
-            HAVING total_quantity > 0
         """, (email,))
         
-        # 抓取所有計算結果
-        records = [dict(row) for row in cursor.fetchall()]
+        records = []
+        for row in cursor.fetchall():
+            bought_qty = row['total_bought_qty']
+            invested = row['total_invested']
+            sold_qty = row['total_sold_qty']
+            revenue = row['total_revenue']
+            current_price = row['current_price']
+            
+            # 1. 基礎數量與成本計算
+            current_inventory = bought_qty - sold_qty
+            avg_cost = invested / bought_qty if bought_qty > 0 else 0
+            avg_sell_price = revenue / sold_qty if sold_qty > 0 else 0
+            
+            # 2. 損益金額計算
+            realized_pnl = revenue - (avg_cost * sold_qty)
+            unrealized_pnl = (current_price - avg_cost) * current_inventory if current_inventory > 0 else 0
+            
+            # 3. 損益百分比 (%) 計算
+            unrealized_pnl_pct = ((current_price - avg_cost) / avg_cost * 100) if avg_cost > 0 else 0
+            realized_pnl_pct = (realized_pnl / (avg_cost * sold_qty) * 100) if (avg_cost > 0 and sold_qty > 0) else 0
+            
+            # 只要還有庫存，或是曾經有賣出紀錄，就回傳給前端
+            if current_inventory > 0 or sold_qty > 0:
+                records.append({
+                    "stock_id": row['stock_id'],
+                    "stock_name": row['stock_name'],
+                    "inventory": current_inventory,
+                    "sold_qty": sold_qty,
+                    "avg_cost": round(avg_cost, 2),
+                    "avg_sell_price": round(avg_sell_price, 2),
+                    "current_price": round(current_price, 2),
+                    "unrealized_pnl": round(unrealized_pnl, 2),
+                    "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
+                    "realized_pnl": round(realized_pnl, 2),
+                    "realized_pnl_pct": round(realized_pnl_pct, 2)
+                })
         
         return jsonify({"status": "success", "data": records})
+        
+    # 👇 你剛剛問的區塊在這裡！它負責接住 try 區塊裡發生的任何錯誤，並確保最後一定會關閉資料庫
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     finally:
@@ -245,6 +282,37 @@ def get_stocks():
             "data": stocks
         })
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+# 8. 模擬市場波動 API (進階功能：自動漲跌)
+@app.route('/api/simulate_market', methods=['POST'])
+def simulate_market():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("SELECT stock_id, current_price FROM STOCK")
+        stocks = cursor.fetchall()
+        
+        for stock in stocks:
+            # 隨機產生 -0.05 (-5%) 到 0.05 (+5%) 的波動率
+            fluctuation = random.uniform(-0.05, 0.05)
+            
+            # 計算新價格並四捨五入到小數點後兩位
+            new_price = round(stock['current_price'] * (1 + fluctuation), 2)
+            
+            # 確保股價不會跌破 0 元（防呆）
+            if new_price < 0.01:
+                new_price = 0.01
+                
+            cursor.execute("UPDATE STOCK SET current_price = ? WHERE stock_id = ?", (new_price, stock['stock_id']))
+            
+        conn.commit()
+        return jsonify({"status": "success", "message": "市場價格已刷新"})
+    except Exception as e:
+        conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         conn.close()

@@ -58,7 +58,12 @@
             <div class="info-panels-container">
                 
                 <div class="info-panel">
-                    <h3>市場報價</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">大盤與權值股</h3>
+                        <button onclick="openAllStocksModal()" style="padding: 4px 8px; font-size: 0.9em; background-color: #475569; color: white; border: none; border-radius: 4px; cursor: pointer;">詳細報價</button>
+                    </div>
+                    <h2 style="margin-top: 10px; margin-bottom: 10px; color: #ef4444;">加權指數：<span id="taiex-index">---</span></h2>
+                    
                     <table id="stock-table">
                         <thead>
                             <tr>
@@ -71,20 +76,46 @@
                     </table>
                 </div>
 
-                <div class="info-panel">
-                    <h3>我的庫存</h3>
-                    <table id="inventory-table">
-                        <thead>
-                            <tr>
-                                <th>股票代號</th>
-                                <th>持有股數</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventory-list"></tbody>
-                    </table>
+                <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+
+               <div class="info-panel">
+                    <h3>我的庫存 (未實現損益)</h3>
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>股票 (代號)</th>
+                                    <th>庫存數量</th>
+                                    <th>平均成本</th>
+                                    <th>最新現價</th>
+                                    <th>未實現損益</th>
+                                    <th>報酬率 (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-list"></tbody>
+                        </table>
+                    </div>
                 </div>
 
-            </div>
+                <div class="info-panel">
+                    <h3>已實現損益 (歷史結算)</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table id="realized-table">
+                            <thead>
+                                <tr>
+                                    <th>股票 (代號)</th>
+                                    <th>買入均價</th>
+                                    <th>賣出均價</th>
+                                    <th>已實現損益</th>
+                                    <th>獲利率 (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="realized-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div></div>
 
             <div class="trade-action-container">
                 
@@ -126,5 +157,23 @@
     </div>
 
     <script src="app.js"></script>
+
+<div id="all-stocks-modal" class="hidden" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%); width: 80%; max-width: 600px; max-height: 80vh; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+            <h2 style="margin: 0;">全部股票詳細報價</h2>
+            <button onclick="closeAllStocksModal()" style="background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer;">關閉 (X)</button>
+        </div>
+        <table style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>股票代號</th>
+                    <th>股票名稱</th>
+                    <th>最新現價</th>
+                </tr>
+            </thead>
+            <tbody id="all-stock-list"></tbody>
+        </table>
+    </div>
+    
 </body>
 </html>
