@@ -193,60 +193,92 @@ def sell_stock():
     finally:
         conn.close()
 
-# 6. 查詢庫存與損益 API (進階功能：未實現與已實現損益)
+# 6. 查詢庫存與損益 API (終極防呆會計版：鎖死已實現損益)
 @app.route('/api/inventory', methods=['POST'])
 def inventory():
     email = request.json['email']
-    
     conn = get_db()
     cursor = conn.cursor()
     
     try:
-        # 1. 把該使用者所有的買賣紀錄，依照股票分組撈出來，並計算總投資額與總賣出額
+        # 1. 撈取該使用者所有歷史交易紀錄，依照時間順序 (id) 排列
         cursor.execute("""
-            SELECT 
-                t.stock_id, 
-                s.stock_name, 
-                s.current_price,
-                SUM(CASE WHEN t.action = 'buy' THEN t.quantity ELSE 0 END) as total_bought_qty,
-                SUM(CASE WHEN t.action = 'buy' THEN t.price * t.quantity ELSE 0 END) as total_invested,
-                SUM(CASE WHEN t.action = 'sell' THEN t.quantity ELSE 0 END) as total_sold_qty,
-                SUM(CASE WHEN t.action = 'sell' THEN t.price * t.quantity ELSE 0 END) as total_revenue
+            SELECT t.stock_id, s.stock_name, s.current_price, t.action, t.price, t.quantity
             FROM Transaction_History t
             JOIN STOCK s ON t.stock_id = s.stock_id
             WHERE t.email = ?
-            GROUP BY t.stock_id
+            ORDER BY t.order_time ASC   
         """, (email,))
         
+        transactions = cursor.fetchall()
+        portfolio = {}
+        
+        # 2. 透過迴圈「重播」歷史交易，精準計算每一刻的成本與已實現損益
+        for row in transactions:
+            stock_id = row['stock_id']
+            if stock_id not in portfolio:
+                portfolio[stock_id] = {
+                    'stock_name': row['stock_name'],
+                    'current_price': row['current_price'],
+                    'inventory': 0,
+                    'total_cost': 0.0,      # 目前手上的總成本
+                    'realized_pnl': 0.0,    # 已實現損益 (賣出時結算，鎖定不變！)
+                    'sold_qty': 0,
+                    'total_sell_revenue': 0.0,
+                    'realized_cost': 0.0    # 賣出時對應的成本總和
+                }
+                
+            p = portfolio[stock_id]
+            action = row['action']
+            price = row['price']
+            qty = row['quantity']
+            
+            if action == 'buy':
+                p['inventory'] += qty
+                p['total_cost'] += price * qty
+            elif action == 'sell':
+                # 賣出時的「當下平均成本」
+                current_avg_cost = p['total_cost'] / p['inventory'] if p['inventory'] > 0 else 0
+                
+                # 💎 關鍵修復：結算這筆賣出的損益，並加入歷史已實現損益 (完全與現在股價脫鉤)
+                trade_pnl = (price - current_avg_cost) * qty
+                p['realized_pnl'] += trade_pnl
+                
+                # 紀錄賣出相關數據 (用來算賣出均價與獲利率)
+                p['sold_qty'] += qty
+                p['total_sell_revenue'] += price * qty
+                p['realized_cost'] += current_avg_cost * qty
+                
+                # 扣除庫存與對應成本
+                p['inventory'] -= qty
+                p['total_cost'] -= current_avg_cost * qty
+
+        # 3. 整理最終結果傳給前端
         records = []
-        for row in cursor.fetchall():
-            bought_qty = row['total_bought_qty']
-            invested = row['total_invested']
-            sold_qty = row['total_sold_qty']
-            revenue = row['total_revenue']
-            current_price = row['current_price']
+        for stock_id, p in portfolio.items():
+            inventory = p['inventory']
+            sold_qty = p['sold_qty']
+            current_price = p['current_price']
             
-            # 1. 基礎數量與成本計算
-            current_inventory = bought_qty - sold_qty
-            avg_cost = invested / bought_qty if bought_qty > 0 else 0
-            avg_sell_price = revenue / sold_qty if sold_qty > 0 else 0
+            # 未實現：現在手上的平均成本 (會隨最新股價波動)
+            avg_cost_unrealized = p['total_cost'] / inventory if inventory > 0 else 0
+            unrealized_pnl = (current_price - avg_cost_unrealized) * inventory if inventory > 0 else 0
+            unrealized_pnl_pct = ((current_price - avg_cost_unrealized) / avg_cost_unrealized * 100) if avg_cost_unrealized > 0 else 0
             
-            # 2. 損益金額計算
-            realized_pnl = revenue - (avg_cost * sold_qty)
-            unrealized_pnl = (current_price - avg_cost) * current_inventory if current_inventory > 0 else 0
+            # 已實現：歷史賣出的平均成本與均價 (絕對靜止)
+            avg_cost_realized = p['realized_cost'] / sold_qty if sold_qty > 0 else 0
+            avg_sell_price = p['total_sell_revenue'] / sold_qty if sold_qty > 0 else 0
+            realized_pnl = p['realized_pnl']
+            realized_pnl_pct = (realized_pnl / p['realized_cost'] * 100) if p['realized_cost'] > 0 else 0
             
-            # 3. 損益百分比 (%) 計算
-            unrealized_pnl_pct = ((current_price - avg_cost) / avg_cost * 100) if avg_cost > 0 else 0
-            realized_pnl_pct = (realized_pnl / (avg_cost * sold_qty) * 100) if (avg_cost > 0 and sold_qty > 0) else 0
-            
-            # 只要還有庫存，或是曾經有賣出紀錄，就回傳給前端
-            if current_inventory > 0 or sold_qty > 0:
+            if inventory > 0 or sold_qty > 0:
                 records.append({
-                    "stock_id": row['stock_id'],
-                    "stock_name": row['stock_name'],
-                    "inventory": current_inventory,
+                    "stock_id": stock_id,
+                    "stock_name": p['stock_name'],
+                    "inventory": inventory,
                     "sold_qty": sold_qty,
-                    "avg_cost": round(avg_cost, 2),
+                    "avg_cost": round(avg_cost_unrealized, 2),              # 給未實現用的平均成本
+                    "avg_buy_price_history": round(avg_cost_realized, 2),   # 💎 新增：專門給已實現用的買入成本
                     "avg_sell_price": round(avg_sell_price, 2),
                     "current_price": round(current_price, 2),
                     "unrealized_pnl": round(unrealized_pnl, 2),
@@ -254,10 +286,9 @@ def inventory():
                     "realized_pnl": round(realized_pnl, 2),
                     "realized_pnl_pct": round(realized_pnl_pct, 2)
                 })
-        
+                
         return jsonify({"status": "success", "data": records})
         
-    # 👇 你剛剛問的區塊在這裡！它負責接住 try 區塊裡發生的任何錯誤，並確保最後一定會關閉資料庫
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     finally:
@@ -301,9 +332,16 @@ def simulate_market():
             fluctuation = random.uniform(-0.05, 0.05)
             
             # 計算新價格並四捨五入到小數點後兩位
-            new_price = round(stock['current_price'] * (1 + fluctuation), 2)
+            old_price = stock['current_price']
+            new_price = round(old_price * (1 + fluctuation), 2)
             
-            # 確保股價不會跌破 0 元（防呆）
+            # 💎 【新增：破解 0.1 元數學黑洞】
+            # 如果算完發現沒變，且是低於 0.5 元的低價股，強制讓它隨機變動 ±0.01 元！
+            if new_price == old_price and old_price <= 0.5:
+                new_price += random.choice([-0.01, 0.01])
+                new_price = round(new_price, 2) # 重新確保只有兩位數
+            
+            # 確保股價不會跌破 0.01 元（底線防呆）
             if new_price < 0.01:
                 new_price = 0.01
                 
