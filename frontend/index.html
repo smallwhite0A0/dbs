@@ -46,115 +46,111 @@
             </div>
         </div>
 
-        <div id="dashboard-section" class="section hidden">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+ <div id="dashboard-section" class="section hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h2 style="margin-bottom: 0;">交易大廳</h2>
                 <button id="btn-logout" onclick="logout()">登出帳號</button>
             </div>
-            
-            <p>歡迎，<span id="display-name"></span>！</p>
-            <p>目前可用資金：$<span id="display-balance"></span></p>
+            <p>歡迎，<span id="display-name" style="font-weight: bold; color: #2563eb;"></span>！ | 目前可用資金：<span id="display-balance" style="font-weight: bold; color: #10b981;"></span> 元</p>
 
-            <div class="info-panels-container">
-                
-                <div class="info-panel">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0;">大盤與權值股</h3>
-                        <button onclick="openAllStocksModal()" style="padding: 4px 8px; font-size: 0.9em; background-color: #475569; color: white; border: none; border-radius: 4px; cursor: pointer;">詳細報價</button>
-                    </div>
-                    <h2 style="margin-top: 10px; margin-bottom: 10px; color: #ef4444;">加權指數：<span id="taiex-index">---</span></h2>
-                    
-                    <table id="stock-table">
-                        <thead>
-                            <tr>
-                                <th>代號</th>
-                                <th>名稱</th>
-                                <th>目前股價</th>
-                            </tr>
-                        </thead>
-                        <tbody id="stock-list"></tbody>
-                    </table>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
-
-               <div class="info-panel">
-                    <h3>我的庫存 (未實現損益)</h3>
-                    <div style="max-height: 500px; overflow-y: auto;">
-                        <table id="inventory-table">
-                            <thead>
-                                <tr>
-                                    <th>股票 (代號)</th>
-                                    <th>庫存數量</th>
-                                    <th>平均成本</th>
-                                    <th>最新現價</th>
-                                    <th>未實現損益</th>
-                                    <th>報酬率 (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="inventory-list"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="info-panel">
-                    <h3>已實現損益 (歷史結算)</h3>
-                    <div style="max-height: 300px; overflow-y: auto;">
-                        <table id="realized-table">
-                            <thead>
-                                <tr>
-                                    <th>股票 (代號)</th>
-                                    <th>買入均價</th>
-                                    <th>賣出均價</th>
-                                    <th>已實現損益</th>
-                                    <th>獲利率 (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="realized-list"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div></div>
-
-            <div class="trade-action-container">
-                
-                <div class="trade-box">
-                    <h3>買入股票</h3>
-                    <input type="text" id="buy-stock-id" placeholder="輸入股票代號 (如: 2330)">
-                    <input type="number" id="buy-quantity" placeholder="輸入數量">
-                    <button onclick="buyStock()">送出買單</button>
-                </div>
-
-                <div class="trade-box">
-                    <h3>賣出股票 </h3>
-                    <input type="text" id="sell-stock-id" placeholder="輸入股票代號 (如: 2330)">
-                    <input type="number" id="sell-quantity" placeholder="輸入數量">
-                    <button id="btn-sell" onclick="sellStock()">送出賣單</button>
-                </div>
-
+            <div class="main-tabs">
+                <button id="nav-market" class="main-tab active" onclick="switchMainTab('market')">大盤權值股</button>
+                <button id="nav-inventory" class="main-tab" onclick="switchMainTab('inventory')">我的庫存 (未實現損益)</button>
+                <button id="nav-realized" class="main-tab" onclick="switchMainTab('realized')">已實現損益 (歷史結算)</button>
+                <button id="nav-order" class="main-tab" onclick="switchMainTab('order')">下單</button>
+                <button id="nav-history" class="main-tab" onclick="switchMainTab('history')">歷史成交明細</button>
             </div>
-        </div>
 
-        <div id="history-section" class="section hidden">
-            <h2>歷史成交明細</h2>
-            <button onclick="getHistory()">刷新紀錄</button>
-            <table>
-                <thead>
-                    <tr>
-                        <th>訂單編號</th>
-                        <th>股票代號</th>
-                        <th>動作</th>
-                        <th>成交價</th>
-                        <th>數量</th>
-                        <th>時間</th>
-                    </tr>
-                </thead>
-                <tbody id="history-list"></tbody>
-            </table>
-        </div>
-
+           <div id="content-market" class="tab-content">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin-top: 10px;">加權指數：<span id="taiex-index" style="color: #ef4444;">---</span></h3>
+        <button onclick="openAllStocksModal()" style="padding: 6px 12px; font-size: 0.85rem; background-color: #475569; color: white; border-radius: 4px; border: none; cursor: pointer;">詳細報價</button>
     </div>
+
+    <table id="stock-table">
+        <thead>
+            <tr>
+                <th>代號</th>
+                <th>名稱</th>
+                <th>目前股價</th>
+            </tr>
+        </thead>
+        <tbody id="stock-list"></tbody>
+    </table>
+
+</div>
+
+            <div id="content-inventory" class="tab-content hidden">
+                <table id="inventory-table">
+                    <thead>
+                        <tr><th>股票 (代號)</th><th>庫存數量</th><th>平均成本</th><th>最新現價</th><th>未實現損益</th><th>報酬率 (%)</th></tr>
+                    </thead>
+                    <tbody id="inventory-list"></tbody>
+                </table>
+            </div>
+
+            <div id="content-realized" class="tab-content hidden">
+                <table id="realized-table">
+                    <thead>
+                        <tr><th>股票 (代號)</th><th>買入均價</th><th>賣出均價</th><th>已實現損益</th><th>獲利率 (%)</th></tr>
+                    </thead>
+                    <tbody id="realized-list"></tbody>
+                </table>
+            </div>
+
+            <div id="content-order" class="tab-content hidden">
+                <div class="trading-terminal">
+                    
+                    <div class="terminal-row">
+                        <label>商品代號</label>
+                        <input type="text" id="order-stock-id" placeholder="輸入代號 (例: 2330)" onkeyup="searchStock()">
+                        <span id="order-stock-name" class="stock-info-badge">---</span>
+                    </div>
+
+                    <div class="terminal-row">
+                        <label>目前市價</label>
+                        <span id="order-stock-price" class="price-display">---</span>
+                    </div>
+
+                    <div class="terminal-row">
+                        <label>買賣方向</label>
+                        <div class="order-type-toggle">
+                            <button id="btn-type-buy" class="type-btn active" onclick="setOrderType('buy')">買進</button>
+                            <button id="btn-type-sell" class="type-btn" onclick="setOrderType('sell')">賣出</button>
+                        </div>
+                    </div>
+
+                    <div class="terminal-row">
+                        <label>委託數量</label>
+                        <input type="number" id="order-quantity" placeholder="輸入股數" onkeyup="calculateTotal()" onchange="calculateTotal()">
+                    </div>
+
+                    <div class="terminal-divider"></div>
+
+                    <div class="terminal-row total-row">
+                        <label>試算預估</label>
+                        <div><span id="order-total-price">0</span> 元</div>
+                    </div>
+
+                    <button id="btn-submit-order" class="submit-order-btn buy-mode" onclick="submitSmartOrder()">確認買進</button>
+                
+                </div>
+            </div>
+
+            <div id="content-history" class="tab-content hidden">
+                <div style="text-align: right; margin-bottom: 10px;">
+                    <button onclick="getHistory()" style="padding: 6px 12px; font-size: 0.85rem; background-color: #64748b; color: white;">刷新紀錄</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>訂單編號</th><th>股票代號</th><th>動作</th><th>成交價</th><th>數量</th><th>時間</th></tr>
+                    </thead>
+                    <tbody id="history-list"></tbody>
+                </table>
+            </div>
+            
+        </div>
 
     <script src="app.js"></script>
 

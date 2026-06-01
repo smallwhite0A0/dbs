@@ -12,6 +12,8 @@ let currentAuthMode = "login";
 
 let availableStocks = {};
 
+
+
 // ==========================================
 // 頁籤切換邏輯 (維持不變)
 // ==========================================
@@ -129,7 +131,10 @@ async function getStocks() {
 
             // 迴圈掃描後端傳來的每一檔股票
             result.data.forEach(stock => {
-                availableStocks[stock.stock_id] = stock.current_price;
+                availableStocks[stock.stock_id] = {
+                    name: stock.stock_name,
+                    price: stock.current_price
+                };
 
                 // 產生全部股票的 HTML (放在彈出視窗用)
                 allListHtml += `
@@ -162,6 +167,9 @@ async function getStocks() {
             // 這樣只要台積電跳動，大盤指數就會跟著逼真地跳動！
             const simulatedTaiex = 15000 + (weightSum * 2.8);
             document.getElementById('taiex-index').innerText = simulatedTaiex.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if (document.getElementById('order-stock-id') && document.getElementById('order-stock-id').value !== '') {
+                searchStock(); 
+            }
         }
     } catch (error) {
         console.error("連線錯誤:", error);
@@ -367,7 +375,7 @@ async function updateInventoryDisplay() {
 function showDashboard() {
     document.getElementById('auth-section').classList.add('hidden');
     document.getElementById('dashboard-section').classList.remove('hidden');
-    document.getElementById('history-section').classList.remove('hidden');
+    // history-section 已經被我們搬進去了，所以不用寫了
     
     document.getElementById('display-name').innerText = currentUser.name;
     updateBalanceDisplay();
@@ -376,7 +384,8 @@ function showDashboard() {
     getHistory();
     updateInventoryDisplay();
 
-    // 👇 新增這行：登入成功後，開始讓大盤自動跳動！
+    // 登入時，預設顯示「大盤權值股」分頁
+    switchMainTab('market');
     startMarketSimulation();
 }
 
@@ -430,12 +439,131 @@ function startMarketSimulation() {
             await fetch(`${API_BASE_URL}/api/simulate_market`, { method: 'POST' });
             
             // 2. 價格洗牌後，直接呼叫你寫好的 getStocks() 重新抓取並更新網頁畫面！
-            getStocks(); 
+            await getStocks(); 
             // 👇 新增這行！更新右邊的庫存與未實現損益
-            updateInventoryDisplay();
+            await updateInventoryDisplay();
             
         } catch (error) {
             console.error("造市模擬連線錯誤:", error);
         }
     }, 5000);
+}
+
+
+// ==========================================
+// 9. 主選單分頁切換邏輯 (Google 風格)
+// ==========================================
+function switchMainTab(tabName) {
+    // 定義所有的分頁名稱
+    const tabs = ['market', 'inventory', 'realized', 'order', 'history'];
+
+    tabs.forEach(tab => {
+        // 控制標籤按鈕的顏色與底線 (active)
+        const btn = document.getElementById(`nav-${tab}`);
+        if (tab === tabName) btn.classList.add('active');
+        else btn.classList.remove('active');
+
+        // 控制內容區塊的顯示與隱藏 (hidden)
+        const content = document.getElementById(`content-${tab}`);
+        if (tab === tabName) content.classList.remove('hidden');
+        else content.classList.add('hidden');
+    });
+}
+
+// ==========================================
+// 11. 智慧交易終端機邏輯
+// ==========================================
+let currentOrderType = 'buy'; // 預設狀態為買進
+let currentSelectedStockPrice = 0; // 暫存使用者目前選中的股票價格
+
+// 切換買進/賣出按鈕樣式
+function setOrderType(type) {
+    currentOrderType = type;
+    const btnBuy = document.getElementById('btn-type-buy');
+    const btnSell = document.getElementById('btn-type-sell');
+    const btnSubmit = document.getElementById('btn-submit-order');
+
+    if (type === 'buy') {
+        btnBuy.classList.add('active');
+        btnSell.classList.remove('active');
+        btnSubmit.className = 'submit-order-btn buy-mode';
+        btnSubmit.innerText = '確認買進';
+    } else {
+        btnBuy.classList.remove('active');
+        btnSell.classList.add('active');
+        btnSubmit.className = 'submit-order-btn sell-mode';
+        btnSubmit.innerText = '確認賣出';
+    }
+}
+
+// 根據輸入的代號，即時搜尋並顯示資訊
+function searchStock() {
+    const stockId = document.getElementById('order-stock-id').value;
+    const nameDisplay = document.getElementById('order-stock-name');
+    const priceDisplay = document.getElementById('order-stock-price');
+
+    // 如果輸入的代號在我們剛剛存的 availableStocks 裡面找得到
+    if (availableStocks[stockId]) {
+        nameDisplay.innerText = availableStocks[stockId].name; // 顯示名稱
+        currentSelectedStockPrice = availableStocks[stockId].price; // 記下價格
+        priceDisplay.innerText = currentSelectedStockPrice.toLocaleString();
+    } else {
+        // 找不到就顯示 ---
+        nameDisplay.innerText = '---';
+        priceDisplay.innerText = '---';
+        currentSelectedStockPrice = 0;
+    }
+    // 價格變了，順便重新計算底下總金額
+    calculateTotal(); 
+}
+
+// 乘法運算：算出預估總金額
+function calculateTotal() {
+    const quantity = parseInt(document.getElementById('order-quantity').value) || 0;
+    const total = currentSelectedStockPrice * quantity;
+    document.getElementById('order-total-price').innerText = total.toLocaleString();
+}
+
+// 最終送出訂單
+async function submitSmartOrder() {
+    const stockId = document.getElementById('order-stock-id').value;
+    const quantity = parseInt(document.getElementById('order-quantity').value);
+
+    if (!availableStocks[stockId]) {
+        alert("交易失敗：查無此股票代號！"); return;
+    }
+    if (!quantity || quantity <= 0) {
+        alert("請輸入正確的交易數量！"); return;
+    }
+
+    // 根據 currentOrderType 決定要打買入還是賣出的 API
+    const endpoint = currentOrderType === 'buy' ? '/api/buy' : '/api/sell';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentUser.email, stock_id: stockId, quantity: quantity })
+        });
+        const result = await response.json();
+
+        if (response.ok && result.status === "success") {
+            alert(result.message);
+            
+            // 更新餘額、歷史紀錄、庫存
+            currentUser.balance = result.remaining_balance;
+            updateBalanceDisplay();
+            await getHistory();
+            await updateInventoryDisplay();
+
+            // 交易成功後，貼心地幫使用者清空輸入框
+            document.getElementById('order-stock-id').value = '';
+            document.getElementById('order-quantity').value = '';
+            searchStock(); // 重置畫面
+        } else {
+            alert("交易失敗：" + result.message);
+        }
+    } catch (error) {
+        console.error("連線錯誤:", error);
+    }
 }
