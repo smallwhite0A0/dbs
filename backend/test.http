@@ -55,3 +55,11 @@ Content-Type: application/json
 
 ### 測試 7：查詢股票大盤行情
 GET http://127.0.0.1:5000/api/stocks
+
+### 測試 8：查詢 ADSP 智慧分析 (真實數據 + Kalman + KD)
+POST http://127.0.0.1:5000/api/stock_analysis
+Content-Type: application/json
+
+{
+  "stock_id": "2330"
+}

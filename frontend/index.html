@@ -5,15 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>股票交易平台</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 </head>
 <body>
     <div class="ticker-wrap">
-        <div class="ticker">
-            <span class="ticker-item"><span class="ticker-up">▲ 台積電 (2330) 600.0 (+1.2%)</span></span>
-            <span class="ticker-item"><span class="ticker-down">▼ 聯發科 (2454) 900.0 (-0.5%)</span></span>
-            <span class="ticker-item"><span class="ticker-up">▲ 鴻海 (2317) 150.5 (+2.1%)</span></span>
-            <span class="ticker-item"><span class="ticker-up">▲ 富邦金 (2881) 75.2 (+0.8%)</span></span>
-            <span class="ticker-item">※ 系統公告：期末專案大成功！台股交易系統連線正常 ※</span>
+        <div class="ticker" id="dynamic-ticker">
         </div>
     </div>
 
@@ -84,7 +80,14 @@
             <div id="content-inventory" class="tab-content hidden">
                 <table id="inventory-table">
                     <thead>
-                        <tr><th>股票 (代號)</th><th>庫存數量</th><th>平均成本</th><th>最新現價</th><th>未實現損益</th><th>報酬率 (%)</th></tr>
+                        <tr>
+                            <th>下單</th> <th>股票 (代號)</th>
+                            <th>庫存數量</th>
+                            <th>平均成本</th>
+                            <th>最新現價</th>
+                            <th>未實現損益</th>
+                            <th>報酬率 (%)</th>
+                        </tr>
                     </thead>
                     <tbody id="inventory-list"></tbody>
                 </table>
@@ -102,10 +105,14 @@
             <div id="content-order" class="tab-content hidden">
                 <div class="trading-terminal">
                     
-                    <div class="terminal-row">
-                        <label>商品代號</label>
-                        <input type="text" id="order-stock-id" placeholder="輸入代號 (例: 2330)" onkeyup="searchStock()">
-                        <span id="order-stock-name" class="stock-info-badge">---</span>
+                    <div class="terminal-row" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="flex-shrink: 0;">商品代號</label>
+                        <input type="text" id="order-stock-id" placeholder="輸入代號" onkeyup="searchStock()" style="width: 100px; flex-shrink: 0;">
+                        <span id="order-stock-name" class="stock-info-badge" style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; text-align: center;" title="股票名稱">---</span>
+                    </div>  
+
+                    <div class="terminal-row" style="justify-content: flex-end; margin-top: -10px; margin-bottom: 10px;">
+                        <button onclick="openTechModal()" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">📊 技術分析圖表</button>
                     </div>
 
                     <div class="terminal-row">
@@ -140,15 +147,24 @@
 
             <div id="content-history" class="tab-content hidden">
                 <div style="text-align: right; margin-bottom: 10px;">
-                    <button onclick="getHistory()" style="padding: 6px 12px; font-size: 0.85rem; background-color: #64748b; color: white;">刷新紀錄</button>
+                    <button onclick="getHistory()" style="padding: 6px 12px; font-size: 0.85rem; background-color: #64748b; color: white; border: none; border-radius: 4px; cursor: pointer;">刷新紀錄</button>
                 </div>
-                <table>
-                    <thead>
-                        <tr><th>訂單編號</th><th>股票代號</th><th>動作</th><th>成交價</th><th>數量</th><th>時間</th></tr>
-                    </thead>
-                    <tbody id="history-list"></tbody>
-                </table>
-            </div>
+                
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>訂單編號</th>
+                                <th>股票代號</th>
+                                <th>動作</th>
+                                <th>成交價</th>
+                                <th>數量</th>
+                                <th>時間</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-list"></tbody>
+                    </table>
+                </div> </div>
             
         </div>
 
@@ -170,6 +186,54 @@
             <tbody id="all-stock-list"></tbody>
         </table>
     </div>
+
+    <div id="tech-modal" class="hidden" style="position: fixed; top: 5%; left: 50%; transform: translateX(-50%); width: 90%; max-width: 800px; max-height: 90vh; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1050; overflow-y: auto;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #1e293b;">📊 技術分析與 ADSP 預測</h3>
+        <button onclick="closeTechModal()" style="background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer;">關閉 (X)</button>
+    </div>
+
+  <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+        <button id="btn-tf-1h" onclick="changeTimeframe('1h')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">60分線</button>
+        <button id="btn-tf-1d" onclick="changeTimeframe('1d')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #3b82f6; background: #eff6ff; color: #1d4ed8; font-weight: bold; cursor: pointer;">日線</button>
+        <button id="btn-tf-1wk" onclick="changeTimeframe('1wk')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">周線</button>
+        <button id="btn-tf-1mo" onclick="changeTimeframe('1mo')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">月線</button>
+    </div>
+    
+    <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: #f8fafc; padding: 10px; border-radius: 6px;">
+        <span style="font-size: 0.9rem; color: #475569; font-weight: bold;">👁️ 顯示指標：</span>
+        
+        <label style="cursor: pointer; font-size: 0.9rem; color: #f472b6; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('5MA')"> 5MA (周)
+        </label>
+        <label style="cursor: pointer; font-size: 0.9rem; color: #a78bfa; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('10MA')"> 10MA (雙周)
+        </label>
+        <label style="cursor: pointer; font-size: 0.9rem; color: #facc15; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('20MA')"> 20MA (月)
+        </label>
+        <label style="cursor: pointer; font-size: 0.9rem; color: #ea580c; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('60MA')"> 60MA (季)
+        </label>
+        <label style="cursor: pointer; font-size: 0.9rem; color: #3b82f6; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('Kalman Filter')"> 卡爾曼趨勢
+        </label>
+    </div>
+    
+    <div id="strategy-advisor" style="margin-bottom: 15px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 5px solid #64748b;">
+        <span style="font-weight: bold; color: #475569;">🤖 ADSP 智慧量化訊號：</span> 
+        <span id="signal-badge" style="padding: 4px 10px; border-radius: 4px; font-weight: bold; background: #94a3b8; color: white;">時序加載中...</span>
+        
+        <div style="margin-top: 10px; font-size: 0.95rem; color: #334155;">
+            📊 最新指標 ➔ 
+            <span style="color: #ef4444; font-weight: bold;">K值: <span id="latest-k">--</span></span> ｜ 
+            <span style="color: #3b82f6; font-weight: bold;">D值: <span id="latest-d">--</span></span>
+        </div>
+    </div>
+
+    <div id="kline-chart" style="width: 100%; min-height: 420px; background: #ffffff; margin-bottom: 10px;"></div>
+</div>
     
 </body>
 </html>

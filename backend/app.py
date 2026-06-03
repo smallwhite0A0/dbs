@@ -1,5 +1,8 @@
 import sqlite3
 import random
+import yfinance as yf
+import pandas as pd
+import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # 【新增】引入 CORS 套件
 
@@ -12,6 +15,115 @@ def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row # 讓回傳的資料可以用字典的方式讀取
     return conn
+
+
+# ==========================================
+# 升級版 ADSP：自適應卡爾曼濾波器 (AKF)
+# ==========================================
+def apply_adaptive_kalman_filter(prices, Q=0.5): # 🌟 將 Q 提高到 0.5，讓系統更願意相信趨勢改變
+    if len(prices) == 0:
+        return []
+    
+    # 計算滾動變異數作為動態 R 值
+    rolling_var = prices.rolling(window=20).var().bfill()
+    
+    x_hat = prices.iloc[0] 
+    P = 1.0                
+    kalman_filtered = []
+    
+    for i in range(len(prices)):
+        z = prices.iloc[i]
+        if pd.isna(z):
+            kalman_filtered.append(None)
+            continue
+            
+        # 🌟 降低 R 的乘數為 0.1，避免在半導體高波動時過度平滑導致嚴重滯後
+        R_dynamic = rolling_var.iloc[i] * 0.1 
+        
+        # 預測與更新
+        x_hat_minus = x_hat
+        P_minus = P + Q
+        K = P_minus / (P_minus + R_dynamic) 
+        x_hat = x_hat_minus + K * (z - x_hat_minus)
+        P = (1 - K) * P_minus
+        
+        kalman_filtered.append(x_hat)
+        
+    return kalman_filtered
+
+# ==========================================
+# 金融訊號處理：動態時框抓取與 AKF+Z-Score 策略
+# ==========================================
+def fetch_and_calculate_indicators(stock_id, timeframe="1d"): # 🌟 接收 timeframe 參數
+    ticker_tw = f"{stock_id}.TW" if not stock_id.endswith(".TW") else stock_id
+    
+    # 🌟 根據時框動態調整抓取長度
+    period_map = {"1h": "3mo", "1d": "1y", "1wk": "5y", "1mo": "max"}
+    period = period_map.get(timeframe, "1y")
+    
+    # 依序嘗試抓取 上市 -> 上櫃
+    df = yf.download(ticker_tw, period=period, interval=timeframe)
+    if df.empty:
+        df = yf.download(f"{stock_id}.TWO", period=period, interval=timeframe)
+        
+    # 如果 1h 抓不到，降級防呆改抓日線
+    if df.empty and timeframe == "1h":
+        df = yf.download(ticker_tw, period="6mo", interval="1d")
+        if df.empty:
+            df = yf.download(f"{stock_id}.TWO", period="6mo", interval="1d")
+
+    if df.empty:
+        return None
+    
+   # 壓平 yfinance 新版產生的 MultiIndex 欄位名稱
+    df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+    
+    # 🌟 關鍵修復：終極資料清洗 (Data Cleaning)
+    # 1. 刪除完全沒有收盤價的無效幽靈資料
+    df = df.dropna(subset=['Close']) 
+    # 2. 如果中間有任何欄位缺失 (例如開高低)，用「前一筆有效價格」向後填補 (Forward Fill)
+    df = df.ffill()
+    
+    # 1. 計算多重均線
+    df['MA5'] = df['Close'].rolling(window=5).mean()
+    df['MA10'] = df['Close'].rolling(window=10).mean()
+    df['MA20'] = df['Close'].rolling(window=20).mean()
+    df['MA60'] = df['Close'].rolling(window=60).mean()
+    
+    # 2. 計算 KD (60, 3, 3)
+    low_60 = df['Low'].rolling(window=60).min()
+    high_60 = df['High'].rolling(window=60).max()
+    df['RSV'] = 100 * ((df['Close'] - low_60) / (high_60 - low_60))
+    
+    k_list, d_list = [], []
+    current_k, current_d = 50.0, 50.0 
+    for rsv in df['RSV']:
+        if pd.isna(rsv):
+            k_list.append(None)
+            d_list.append(None)
+        else:
+            current_k = (2/3) * current_k + (1/3) * rsv
+            current_d = (2/3) * current_d + (1/3) * current_k
+            k_list.append(current_k)
+            d_list.append(current_d)
+            
+    df['K'] = k_list
+    df['D'] = d_list
+    
+    # 3. 執行自適應卡爾曼濾波去噪價格
+    df['Kalman_Price'] = apply_adaptive_kalman_filter(df['Close'])
+    
+    # 4. 計算 Z-Score 乖離率 (找尋超跌點)
+    df['Residual'] = df['Close'] - df['Kalman_Price']
+    rolling_std = df['Close'].rolling(window=20).std().bfill()
+    df['Z_Score'] = df['Residual'] / rolling_std
+    
+    # 5. 買進策略邏輯
+    trend_buy = (df['Close'] > df['Kalman_Price']) & (df['K'] > df['D'])
+    oversold_buy = (df['Z_Score'] < -2.0)
+    df['Signal'] = trend_buy | oversold_buy 
+    
+    return df
 
 # 1. 註冊 API (防呆終極版：自動產生 ID00X)
 @app.route('/api/register', methods=['POST'])
@@ -363,6 +475,75 @@ def test_db():
     users = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify({"status": "success", "data": users})
+
+@app.route('/api/stock_analysis', methods=['POST'])
+def stock_analysis():
+    data = request.json
+    stock_id = data.get('stock_id')
+    timeframe = data.get('timeframe', '1d') # 🌟 關鍵：接收前端傳來的 timeframe
+    
+    if not stock_id:
+        return jsonify({"status": "error", "message": "請提供股票代號"}), 400
+        
+    # 🌟 關鍵：將 timeframe 傳入計算函數中
+    df = fetch_and_calculate_indicators(stock_id, timeframe)
+    
+    if df is None or df.empty:
+        return jsonify({"status": "error", "message": "無法獲取該股票數據，請確認代號是否正確"}), 400
+        
+    # 只取最近 100 筆 60 分鐘 K 線資料傳給前端畫圖，避免資料量過大
+    df_recent = df.tail(100)
+    
+    chart_data = []
+    for timestamp, row in df_recent.iterrows():
+        chart_data.append({
+            "time": timestamp.strftime('%Y-%m-%d %H:%M'), 
+            "open": round(float(row['Open']), 2),
+            "high": round(float(row['High']), 2),
+            "low": round(float(row['Low']), 2),
+            "close": round(float(row['Close']), 2),
+            "ma5": round(float(row['MA5']), 2) if not pd.isna(row['MA5']) else None,
+            "ma10": round(float(row['MA10']), 2) if not pd.isna(row['MA10']) else None,
+            "ma20": round(float(row['MA20']), 2) if not pd.isna(row['MA20']) else None,
+            "ma60": round(float(row['MA60']), 2) if not pd.isna(row['MA60']) else None,
+            "k_val": round(float(row['K']), 2) if not pd.isna(row['K']) else None,
+            "d_val": round(float(row['D']), 2) if not pd.isna(row['D']) else None,
+            
+            # ✅ 修復：加上 pd.isna 判斷，避免空值造成 float() 當機
+            "kalman": round(float(row['Kalman_Price']), 2) if not pd.isna(row['Kalman_Price']) else None,
+            "z_score": round(float(row['Z_Score']), 2) if not pd.isna(row['Z_Score']) else 0,
+            
+            # ✅ 修復：刪除重複的 kalman 與 signal，只留一個
+            "signal": bool(row['Signal'])
+        })
+    # 🌟 透過 yfinance 動態抓取真實公司名稱 (加入錯誤處理確保不當機)
+    try:
+        # 取得公司資訊字典
+        stock_info = yf.Ticker(f"{stock_id}.TW").info
+        if 'shortName' not in stock_info: # 如果上市找不到，改找上櫃
+            stock_info = yf.Ticker(f"{stock_id}.TWO").info
+        
+        # 從字典中提取名稱，若沒有則預設回傳代號
+        real_stock_name = stock_info.get('shortName', stock_info.get('longName', str(stock_id)))
+    except:
+        real_stock_name = str(stock_id) # 萬一網路異常，至少顯示代號
+        
+    # 同步把最新的真實價格更新進你的 SQLITE STOCK 資料庫
+    latest_close = chart_data[-1]['close']
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE STOCK SET current_price = ? WHERE stock_id = ?", (latest_close, stock_id))
+    conn.commit()
+    conn.close()
+
+    # 👇 注意這裡：把剛抓到的 stock_name 一起打包傳給前端！
+    return jsonify({
+        "status": "success",
+        "stock_id": stock_id,
+        "stock_name": real_stock_name, # 👈 新增這行：真實名稱
+        "latest_signal": chart_data[-1]['signal'],
+        "data": chart_data
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

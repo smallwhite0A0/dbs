@@ -274,16 +274,18 @@ tbody tr:last-child td {
     letter-spacing: 1px;
 }
 
+/* 買進 (BUY)：台股紅色系 */
 .badge-buy {
-    background-color: #d1fae5;
-    color: #065f46;
-    border: 1px solid #34d399;
+    background-color: #fee2e2; /* 淺紅色背景 */
+    color: #dc2626;            /* 深紅色文字 */
+    border: 1px solid #f87171; /* 紅色邊框 */
 }
 
+/* 賣出 (SELL)：台股綠色系 */
 .badge-sell {
-    background-color: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #f87171;
+    background-color: #dcfce7; /* 淺綠色背景 */
+    color: #16a34a;            /* 深綠色文字 */
+    border: 1px solid #4ade80; /* 綠色邊框 */
 }
 /* ==========================================
    新增：賣出按鈕專屬樣式
