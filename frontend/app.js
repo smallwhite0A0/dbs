@@ -13,7 +13,8 @@ let currentAuthMode = "login";
 let availableStocks = {};
 let previousPrices = {}; // 👈 新增這行：用來記錄前一次股價，才能算漲跌幅
 
-
+// 🌟 補回這行：定義你要顯示在大盤區塊的權值股 (可自由替換你資料庫裡有的代號)
+const MAJOR_STOCKS = ["2330", "2317", "2454", "2308", "3711"];
 
 // ==========================================
 // 頁籤切換邏輯 (維持不變)
@@ -110,10 +111,8 @@ async function login() {
 
 
 // ==========================================
-// 3. 取得股票清單 (升級版：大盤模擬、視窗分類與即時跑馬燈)
+// 3. 取得股票清單 (跑馬燈專屬權值股版)
 // ==========================================
-const MAJOR_STOCKS = ["2330", "2317", "2454", "7769", "8299","0050","3131"];
-
 async function getStocks() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/stocks`, { 
@@ -125,83 +124,92 @@ async function getStocks() {
         if (response.ok && result.status === "success") {
             let majorListHtml = "";
             let allListHtml = "";
-            let tickerHtml = ""; // 👈 新增：用來打包跑馬燈的字串
+            let tickerHtml = ""; 
             let weightSum = 0;
 
             availableStocks = {};
 
-            // 迴圈掃描後端傳來的每一檔股票
+            // 迴圈掃描後端傳來的「每一檔」資料庫股票
             result.data.forEach(stock => {
+                // 強制將價格轉為數字，名稱防空值
+                let currentPrice = Number(stock.current_price) || 0;
+                let stockName = stock.stock_name || stock.stock_id;
+
                 availableStocks[stock.stock_id] = {
-                    name: stock.stock_name,
-                    price: stock.current_price
+                    name: stockName,
+                    price: currentPrice
                 };
 
-                // 產生全部股票的 HTML
+                // 產生全部股票的 HTML (詳細報價區)
                 allListHtml += `
                     <tr>
                         <td>${stock.stock_id}</td>
-                        <td>${stock.stock_name}</td>
-                        <td style="font-weight: bold;">$${stock.current_price}</td>
+                        <td>${stockName}</td>
+                        <td style="font-weight: bold;">$${currentPrice.toFixed(2)}</td>
                     </tr>
                 `;
 
-                // 針對五大權值股的特別處理
+                // 🛡️ 針對五大權值股的特別處理 (包含表格 與 跑馬燈)
                 if (MAJOR_STOCKS.includes(stock.stock_id)) {
+                    // 1. 加入大盤表格
                     majorListHtml += `
                         <tr>
                             <td>${stock.stock_id}</td>
-                            <td style="font-weight:bold; color: #2563eb;">${stock.stock_name}</td>
-                            <td style="font-weight:bold;">$${stock.current_price}</td>
+                            <td style="font-weight:bold; color: #2563eb;">${stockName}</td>
+                            <td style="font-weight:bold;">$${currentPrice.toFixed(2)}</td>
                         </tr>
                     `;
-                    weightSum += stock.current_price;
+                    weightSum += currentPrice;
 
                     // ==========================================
-                    // 🌟 動態跑馬燈計算邏輯 🌟
+                    // 🌟 2. 加入動態跑馬燈 (只在這裡執行，過濾掉其他股票)
                     // ==========================================
-                    // 1. 抓取上一次的價格。如果剛登入沒有紀錄，就稍微打個 99 折作為「昨收價」，讓第一次載入就有紅綠變化！
                     let prevPrice = previousPrices[stock.stock_id];
-                    if (!prevPrice) {
-                        prevPrice = stock.current_price * 0.99; 
+                    if (!prevPrice || prevPrice === 0) {
+                        prevPrice = currentPrice * 0.99; 
                     }
 
-                    const diff = stock.current_price - prevPrice;
+                    const diff = currentPrice - prevPrice;
                     const diffPct = (diff / prevPrice) * 100;
 
                     let arrow = "■";
-                    let colorStyle = "color: #94a3b8;"; // 平盤灰
+                    let colorStyle = "color: #94a3b8;"; 
                     let sign = "";
 
-                    // 台股買紅賣綠邏輯
                     if (diff > 0) {
-                        arrow = "▲"; colorStyle = "color: #ef4444;"; sign = "+"; // 漲紅
+                        arrow = "▲"; colorStyle = "color: #ef4444;"; sign = "+"; 
                     } else if (diff < 0) {
-                        arrow = "▼"; colorStyle = "color: #22c55e;"; sign = "";  // 跌綠
+                        arrow = "▼"; colorStyle = "color: #22c55e;"; sign = "";  
                     }
 
-                    // 把這檔股票塞進跑馬燈字串裡
-                    tickerHtml += `<span class="ticker-item"><span style="${colorStyle} font-weight: bold;">${arrow} ${stock.stock_name} (${stock.stock_id}) ${stock.current_price.toFixed(2)} (${sign}${diffPct.toFixed(2)}%)</span></span>`;
-
-                    // 2. 更新紀錄，給 5 秒後的下一次跳動使用
-                    previousPrices[stock.stock_id] = stock.current_price;
+                    tickerHtml += `<span class="ticker-item" style="margin-right: 25px;"><span style="${colorStyle} font-weight: bold;">${arrow} ${stockName} (${stock.stock_id}) ${currentPrice.toFixed(2)} (${sign}${diffPct.toFixed(2)}%)</span></span>`;
                 }
+
+                // 更新紀錄，給下一次跳動使用 (所有股票都更新以備不時之需)
+                previousPrices[stock.stock_id] = currentPrice;
             });
 
             // 將 HTML 塞入表格
             document.getElementById('stock-list').innerHTML = majorListHtml;
             document.getElementById('all-stock-list').innerHTML = allListHtml;
 
-            // 👇 注入跑馬燈畫面，並在最後加上系統公告
+            // 注入跑馬燈畫面
             const tickerContainer = document.getElementById('dynamic-ticker');
             if (tickerContainer) {
-                tickerContainer.innerHTML = tickerHtml + `<span class="ticker-item" style="color: #fbbf24; font-weight: bold;">※ 系統公告：期末專案大成功！台股交易系統即時連線中 ※</span>`;
+                tickerContainer.innerHTML = tickerHtml + `<span class="ticker-item" style="color: #fbbf24; font-weight: bold; margin-right: 25px;">※ 系統公告：期末專案大成功！台股交易系統即時連線中 ※</span>`;
             }
 
-            // 虛擬加權指數
-            const simulatedTaiex = 15000 + (weightSum * 1.7);
-            document.getElementById('taiex-index').innerText = simulatedTaiex.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            // ==========================================
+            // 🌟 接收並顯示真實台灣加權指數
+            // ==========================================
+            let realTaiex = result.taiex;
+            if (realTaiex && realTaiex !== "---") {
+                document.getElementById('taiex-index').innerText = Number(realTaiex).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                document.getElementById('taiex-index').innerText = "連線異常";
+            }
             
+            // 恢復搜尋框連動
             if (document.getElementById('order-stock-id') && document.getElementById('order-stock-id').value !== '') {
                 searchStock(); 
             }
@@ -587,7 +595,16 @@ async function searchStock() {
         const result = await response.json();
 
         if (response.ok && result.status === "success") {
-           nameDisplay.innerText = availableStocks[stockId] ? availableStocks[stockId].name : result.stock_name;
+            // 🌟 關鍵升級：把從 Yahoo 抓到的新標的，動態註冊到前端的可交易清單中！
+            if (!availableStocks[stockId]) {
+                availableStocks[stockId] = {
+                    name: result.stock_name,
+                    price: result.data[result.data.length - 1].close
+                };
+            }
+            
+            // 顯示名稱 (現在一定找得到名字了)
+            nameDisplay.innerText = availableStocks[stockId].name;
             
             const latestData = result.data[result.data.length - 1];
             currentSelectedStockPrice = latestData.close;
@@ -617,33 +634,95 @@ function openTechModal() {
     
     document.getElementById('tech-modal').classList.remove('hidden');
     
-    // 🌟 關鍵修復 2：每次重畫圖表時，強制把所有 HTML 的 Checkbox 打勾，讓 UI 與圖表預設狀態完美同步！
     const checkboxes = document.querySelectorAll('#tech-modal input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
     
-    // 全場只宣告一次 latestData，放在這裡統籌使用
     const latestData = currentStockData[currentStockData.length - 1]; 
     const badge = document.getElementById('signal-badge');
     
-    // 1. 更新紅綠燈訊號
-    if (currentSignal) {
-        if (latestData.z_score < -2) {
-            badge.innerText = "🚨 極端超跌抄底訊號 (Z-Score < -2，具備均值回歸潛力！)";
-            badge.style.backgroundColor = "#8b5cf6"; 
-        } else {
-            badge.innerText = "🚀 滿足買進條件 (AKF 趨勢成型 且 KD 黃金交叉！)";
-            badge.style.backgroundColor = "#ef4444"; 
-        }
-    } else {
-        badge.innerText = "⏳ 未達條件 (趨勢偏弱或震盪，等待 Z-Score 超跌點)";
-        badge.style.backgroundColor = "#475569"; 
+   // 取得最新一天的資料 (今日)
+    const curr = currentStockData[currentStockData.length - 1]; 
+    // 取得前一天的資料 (昨日) - 用來判斷是否發生「交叉」穿越
+    const prev = currentStockData.length > 1 ? currentStockData[currentStockData.length - 2] : curr;
+    
+    // ==========================================
+    // 🤖 ADSP 量化大腦：三大策略與防追高判定 (Priority Logic)
+    // ==========================================
+    let signalText = "⏳ 未達進場條件 (趨勢偏弱或震盪，建議觀望)";
+    let signalColor = "#475569"; // 預設觀望灰
+
+    // 【防呆 A】極端超買逃頂 (優先級最高，保護獲利)
+    if (curr.z_score > 2.0) {
+        signalText = "🔥 停利訊號：極端超買逃頂 (Z-Score > 2，隨時面臨劇烈回檔！)";
+        signalColor = "#10b981"; // 台股賣出綠
+    } 
+    // 【防呆 B】雙線死亡交叉 (長線跌破)
+    else if (prev.tvkf >= prev.tikf && curr.tvkf < curr.tikf) {
+        signalText = "📉 停損/停利訊號：雙線死亡交叉 (動能衰退，建議出場！)";
+        signalColor = "#10b981"; 
+    } 
+    // 🌟【新增！防呆 C】防追高機制：漲幅過大，乖離或 KD 過熱
+    else if (curr.tvkf > curr.tikf && (curr.z_score >= 1.5 || curr.k_val >= 80)) {
+        signalText = "⚠️ 追高風險：指標嚴重過熱，已錯過最佳買點，請觀望等回檔！";
+        signalColor = "#eab308"; // 警告黃
     }
+    // 【策略三】趨勢共振 (過濾掉過熱後，才是安全的波段買點)
+    else if (curr.close > curr.tvkf && curr.tvkf > curr.tikf && curr.k_val > curr.d_val) {
+        signalText = "🎯 策略三：趨勢共振 (三鍵齊發，波段多頭確認！)";
+        signalColor = "#ef4444"; // 強勢紅
+    } 
+    // 【策略二】左側抄底 (極端錯殺，均值回歸)
+    else if (curr.z_score < -2.0) {
+        signalText = "🚨 策略二：極端超跌抄底 (Z-Score < -2，具備反彈潛力！)";
+        signalColor = "#8b5cf6"; // 神秘紫
+    } 
+    // 【策略一】雙線黃金交叉 (昨日還在下方，今日剛突破)
+    else if (prev.tvkf <= prev.tikf && curr.tvkf > curr.tikf) {
+        signalText = "🚀 策略一：雙線黃金交叉 (短線動能正式突破長線價值！)";
+        signalColor = "#f97316"; // 活力橘
+    } 
+    // 【日常狀態補充】
+    else if (curr.tvkf > curr.tikf) {
+        signalText = "📈 雙線偏多 (TVKF > TIKF，但動能尚未共振，可分批佈局)";
+        signalColor = "#f43f5e"; // 溫和粉紅
+    } 
+    else if (curr.tvkf < curr.tikf) {
+        signalText = "📉 雙線偏空 (TVKF < TIKF，長線價值跌破，建議觀望)";
+        signalColor = "#14b8a6"; // 溫和藍綠
+    }
+
+    // 將算好的訊號與顏色輸出到畫面上
+    badge.innerText = signalText;
+    badge.style.backgroundColor = signalColor;
+    // ==========================================
 
     // 2. 顯示 K, D 數值
     document.getElementById('latest-k').innerText = latestData.k_val ? latestData.k_val.toFixed(2) : "計算中";
     document.getElementById('latest-d').innerText = latestData.d_val ? latestData.d_val.toFixed(2) : "計算中";
 
-    // 3. 延遲畫圖
+    // 🌟 3. 新增：顯示最新收盤價、TVKF、TIKF 與 Z-Score
+    document.getElementById('latest-close').innerText = latestData.close ? latestData.close.toFixed(2) : "--";
+    document.getElementById('latest-tvkf').innerText = latestData.tvkf ? latestData.tvkf.toFixed(2) : "--";
+    document.getElementById('latest-tikf').innerText = latestData.tikf ? latestData.tikf.toFixed(2) : "--";
+
+    // 🌟 4. 新增：Z-Score 動態變色邏輯 (超跌深紫、超買爆紅、正常平盤灰)
+    const zElem = document.getElementById('latest-zscore');
+    const zVal = latestData.z_score;
+    if (zVal !== undefined && zVal !== null) {
+        zElem.innerText = zVal.toFixed(2);
+        if (zVal <= -2.0) {
+            zElem.style.color = '#8b5cf6'; // 觸發極端超跌，顯示紫色
+        } else if (zVal >= 2.0) {
+            zElem.style.color = '#ef4444'; // 觸發極端超買，顯示紅色
+        } else {
+            zElem.style.color = '#475569'; // 正常區間，顯示穩重灰
+        }
+    } else {
+        zElem.innerText = "0.00";
+        zElem.style.color = '#475569';
+    }
+
+    // 5. 延遲畫圖
     setTimeout(() => {
         renderSmartCharts(currentStockData);
     }, 100);
@@ -654,27 +733,25 @@ function closeTechModal() {
     document.getElementById('tech-modal').classList.add('hidden');
 }
 
-// 🎨 使用 ApexCharts 繪製單一主圖 (無斷層完美版)
+// 🎨 使用 ApexCharts 繪製單一主圖 (支援 TVKF & TIKF 雙軌)
 function renderSmartCharts(serverData) {
     const candleSeries = [];
-    const ma5Series = [];  
-    const ma10Series = []; 
-    const ma20Series = []; 
-    const ma60Series = [];
-    const kalmanSeries = [];
+    const ma5Series = [], ma10Series = [], ma20Series = [], ma60Series = [];
+    const tvkfSeries = [];
+    const tikfSeries = [];
 
     serverData.forEach(item => {
-        // ✅ 關鍵修復 1：不要轉成 timestamp，直接用字串時間，讓 K 線一根接一根，跳過休市空白！
         const timeStr = item.time; 
-        
         candleSeries.push({ x: timeStr, y: [item.open, item.high, item.low, item.close] });
         
-        // 確保數值存在才畫線
         if (item.ma5 !== null) ma5Series.push({ x: timeStr, y: item.ma5 });
         if (item.ma10 !== null) ma10Series.push({ x: timeStr, y: item.ma10 });
         if (item.ma20 !== null) ma20Series.push({ x: timeStr, y: item.ma20 });
         if (item.ma60 !== null) ma60Series.push({ x: timeStr, y: item.ma60 });
-        if (item.kalman !== null) kalmanSeries.push({ x: timeStr, y: item.kalman });
+        
+        // 畫出兩條全新的卡爾曼線
+        if (item.tvkf !== null) tvkfSeries.push({ x: timeStr, y: item.tvkf });
+        if (item.tikf !== null) tikfSeries.push({ x: timeStr, y: item.tikf });
     });
 
     const mainOptions = {
@@ -684,23 +761,41 @@ function renderSmartCharts(serverData) {
             { name: '10MA', type: 'line', data: ma10Series },
             { name: '20MA', type: 'line', data: ma20Series },
             { name: '60MA', type: 'line', data: ma60Series },
-            { name: 'Kalman Filter', type: 'line', data: kalmanSeries }
+            { name: 'TVKF (動態)', type: 'line', data: tvkfSeries },
+            { name: 'TIKF (靜態)', type: 'line', data: tikfSeries }
         ],
         chart: { 
             type: 'line', height: 420, toolbar: { show: false },
-            id: 'kline-chart-id',
-            animations: { enabled: false } 
+            id: 'kline-chart-id', animations: { enabled: false } 
         },
-        stroke: { width: [1, 1.5, 1.5, 1.5, 2, 3], curve: 'smooth' },
-        colors: ['#00E396', '#f472b6', '#a78bfa', '#facc15', '#ea580c', '#3b82f6'], 
+
+// ==========================================
+        // 🌟 新增這裡：強制設定台股「紅漲綠跌」顏色
+        // ==========================================
+        plotOptions: {
+            candlestick: {
+                colors: {
+                    upward: '#ef4444',   // 漲：熱情台股紅
+                    downward: '#22c55e'  // 跌：台股出貨綠
+                },
+                wick: {
+                    useFillColor: true   // 讓上下影線跟著實體 K 棒同色，畫面更乾淨
+                }
+            }
+        },
+        // ==========================================
+
+        // 🌟 TVKF 用 2px，TIKF 作為大趨勢基準用最粗的 3px
+        stroke: { width: [1, 1.5, 1.5, 1.5, 2, 2, 3], curve: 'smooth' },
+        
+        // 🌟 配色：TVKF 是科技藍 (#3b82f6)，TIKF 是深紫羅蘭 (#8b5cf6)
+        colors: ['#00E396', '#f472b6', '#a78bfa', '#facc15', '#ea580c', '#3b82f6', '#8b5cf6'], 
         
         xaxis: { 
-            type: 'category', // ✅ 關鍵修復 2：改回類別軸，徹底消除假日與夜晚斷層
-            tickAmount: 8,    // ✅ 關鍵修復 3：強制 X 軸最多只顯示 8 個時間標籤，解決文字擠壓問題
+            type: 'category', tickAmount: 8,    
             labels: { 
                 formatter: function(val) {
                     if (!val) return '';
-                    // 將後端傳來的 '2026-05-18 13:00' 裁切成 '05/18 13:00'，讓畫面更清爽
                     return val.substring(5, 16).replace('-', '/');
                 }
             },

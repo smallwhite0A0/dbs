@@ -168,7 +168,7 @@
             
         </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=4"></script>
 
 <div id="all-stocks-modal" class="hidden" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%); width: 80%; max-width: 600px; max-height: 80vh; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
@@ -200,7 +200,7 @@
         <button id="btn-tf-1wk" onclick="changeTimeframe('1wk')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">周線</button>
         <button id="btn-tf-1mo" onclick="changeTimeframe('1mo')" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">月線</button>
     </div>
-    
+
     <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: #f8fafc; padding: 10px; border-radius: 6px;">
         <span style="font-size: 0.9rem; color: #475569; font-weight: bold;">👁️ 顯示指標：</span>
         
@@ -217,7 +217,10 @@
             <input type="checkbox" checked onchange="toggleIndicator('60MA')"> 60MA (季)
         </label>
         <label style="cursor: pointer; font-size: 0.9rem; color: #3b82f6; font-weight: bold;">
-            <input type="checkbox" checked onchange="toggleIndicator('Kalman Filter')"> 卡爾曼趨勢
+            <input type="checkbox" checked onchange="toggleIndicator('TVKF (動態)')"> TVKF (動態)
+        </label>
+        <label style="cursor: pointer; font-size: 0.9rem; color: #8b5cf6; font-weight: bold;">
+            <input type="checkbox" checked onchange="toggleIndicator('TIKF (靜態)')"> TIKF (靜態)
         </label>
     </div>
     
@@ -226,9 +229,16 @@
         <span id="signal-badge" style="padding: 4px 10px; border-radius: 4px; font-weight: bold; background: #94a3b8; color: white;">時序加載中...</span>
         
         <div style="margin-top: 10px; font-size: 0.95rem; color: #334155;">
-            📊 最新指標 ➔ 
-            <span style="color: #ef4444; font-weight: bold;">K值: <span id="latest-k">--</span></span> ｜ 
+            📊 震盪指標 ➔ 
+            <span style="color: #ef4444; font-weight: bold;">   K值: <span id="latest-k">--</span></span> ｜ 
             <span style="color: #3b82f6; font-weight: bold;">D值: <span id="latest-d">--</span></span>
+        </div>
+        
+        <div style="margin-top: 8px; font-size: 0.95rem; color: #334155; display: flex; flex-wrap: wrap; gap: 15px;">
+            <span>💰 最新收盤價: <span id="latest-close" style="font-weight: bold; color: #1e293b;">--</span></span>
+            <span>🔵 TVKF (動態): <span id="latest-tvkf" style="font-weight: bold; color: #3b82f6;">--</span></span>
+            <span>🟣 TIKF (靜態): <span id="latest-tikf" style="font-weight: bold; color: #8b5cf6;">--</span></span>
+            <span>⚡ Z-Score 乖離: <span id="latest-zscore" style="font-weight: bold;">--</span></span>
         </div>
     </div>
 

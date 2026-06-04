@@ -18,38 +18,72 @@ def get_db():
 
 
 # ==========================================
-# 升級版 ADSP：自適應卡爾曼濾波器 (AKF)
+# 升級版 ADSP：狀態空間模型 (TVKF & TIKF)
 # ==========================================
-def apply_adaptive_kalman_filter(prices, Q=0.5): # 🌟 將 Q 提高到 0.5，讓系統更願意相信趨勢改變
-    if len(prices) == 0:
-        return []
+class StockKalmanFilter:
+    def __init__(self, initial_price):
+        self.x = np.array([[initial_price], [0.0]]) # [價格, 速度]^T
+        self.P = np.array([[1.0, 0.0], [0.0, 1.0]])
+        self.F = np.array([[1.0, 1.0], [0.0, 1.0]])
+        self.H = np.array([[1.0, 0.0]])
+        self.I = np.eye(2)
+
+    def predict(self, Q):
+        self.x = self.F @ self.x
+        self.P = self.F @ self.P @ self.F.T + Q
+        return self.x[0, 0]
+
+    def update(self, z, R):
+        S = self.H @ self.P @ self.H.T + R
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+        y = z - (self.H @ self.x)
+        self.x = self.x + K @ y
+        self.P = (self.I - K @ self.H) @ self.P
+        return self.x[0, 0]
+
+def run_kalman_strategies(prices_series):
+    N = 5 # TVKF 的滾動窗口大小
+    prices = prices_series.values
     
-    # 計算滾動變異數作為動態 R 值
-    rolling_var = prices.rolling(window=20).var().bfill()
+    # 填補可能殘留的 NaN，確保矩陣運算不會崩潰
+    prices = pd.Series(prices).ffill().bfill().values 
+    velocities = np.diff(prices, prepend=prices[0]) 
     
-    x_hat = prices.iloc[0] 
-    P = 1.0                
-    kalman_filtered = []
+    kf_dynamic = StockKalmanFilter(initial_price=prices[0])
+    kf_static = StockKalmanFilter(initial_price=prices[0])
     
+    tvkf_filtered, tikf_filtered = [], []
+    var_price_long = np.var(prices)
+    var_vel_long = np.var(velocities)
+    
+    # TIKF 靜態參數 (極致平滑)
+    R_static = np.array([[var_price_long * 10.0]]) 
+    Q_static = np.array([[var_vel_long * 0.1, 0], [0, var_vel_long * 0.1]])
+
     for i in range(len(prices)):
-        z = prices.iloc[i]
-        if pd.isna(z):
-            kalman_filtered.append(None)
-            continue
-            
-        # 🌟 降低 R 的乘數為 0.1，避免在半導體高波動時過度平滑導致嚴重滯後
-        R_dynamic = rolling_var.iloc[i] * 0.1 
+        z_k = np.array([[prices[i]]])
         
-        # 預測與更新
-        x_hat_minus = x_hat
-        P_minus = P + Q
-        K = P_minus / (P_minus + R_dynamic) 
-        x_hat = x_hat_minus + K * (z - x_hat_minus)
-        P = (1 - K) * P_minus
+        # TVKF 動態參數 (適應高波動)
+        if i < N:
+            R_dynamic = np.array([[1e-2]])
+            Q_dynamic = np.array([[1e-2, 0], [0, 1e-2]])
+        else:
+            var_price_short = np.var(prices[i-N:i])
+            var_vel_short = np.var(velocities[i-N:i])
+            R_dynamic = np.array([[max(var_price_short, 1e-4)]])
+            Q_dynamic = np.array([[var_vel_short, 0], [0, var_vel_short]])
+
+        # 執行遞迴
+        kf_dynamic.predict(Q_dynamic)
+        tvkf_filtered.append(kf_dynamic.update(z_k, R_dynamic))
         
-        kalman_filtered.append(x_hat)
+        kf_static.predict(Q_static)
+        tikf_filtered.append(kf_static.update(z_k, R_static))
         
-    return kalman_filtered
+    return pd.DataFrame({
+        'TVKF': tvkf_filtered,
+        'TIKF': tikf_filtered
+    }, index=prices_series.index)
 
 # ==========================================
 # 金融訊號處理：動態時框抓取與 AKF+Z-Score 策略
@@ -78,11 +112,47 @@ def fetch_and_calculate_indicators(stock_id, timeframe="1d"): # 🌟 接收 time
    # 壓平 yfinance 新版產生的 MultiIndex 欄位名稱
     df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     
-    # 🌟 關鍵修復：終極資料清洗 (Data Cleaning)
     # 1. 刪除完全沒有收盤價的無效幽靈資料
     df = df.dropna(subset=['Close']) 
     # 2. 如果中間有任何欄位缺失 (例如開高低)，用「前一筆有效價格」向後填補 (Forward Fill)
     df = df.ffill()
+
+   # ==========================================
+    # 🌟 【新增：Yahoo API 亞洲時區延遲補丁 (時區免疫版)】🌟
+    # ==========================================
+    if not df.empty and timeframe == "1d":
+        try:
+            # 去抓取最近 1 天的 1 分鐘線
+            df_today = yf.download(ticker_tw, period="1d", interval="1m", progress=False)
+            if df_today.empty:
+                df_today = yf.download(f"{stock_id}.TWO", period="1d", interval="1m", progress=False)
+            
+            if not df_today.empty:
+                df_today.columns = [col[0] if isinstance(col, tuple) else col for col in df_today.columns]
+                
+                # 💎 關鍵修復 1：強制把 1m 資料的時區拔除 (tz_localize(None))，再歸零到午夜
+                latest_date = df_today.index[-1].tz_localize(None).normalize() 
+                
+                # 💎 關鍵修復 2：確保原本的日線 df 也是沒有時區的狀態
+                if df.index.tz is not None:
+                    df.index = df.index.tz_localize(None)
+                
+                # 現在雙方都沒時區了，可以安全比對！
+                if df.index[-1] < latest_date:
+                    # 我們就自己把今天的 1m 線，融合成一根日 K 線
+                    new_row = pd.DataFrame({
+                        'Open': [float(df_today['Open'].iloc[0])], 
+                        'High': [float(df_today['High'].max())], 
+                        'Low': [float(df_today['Low'].min())], 
+                        'Close': [float(df_today['Close'].iloc[-1])]
+                    }, index=[latest_date])
+                    
+                    df = pd.concat([df, new_row])
+                    print(f"[系統提示] 成功為 {stock_id} 補上 {latest_date.date()} 之即時日線資料！")
+        except Exception as e:
+            # 這樣如果有錯，終端機會精準印出原因，不會再死得不明不白
+            print(f"[系統提示] 即時補丁執行略過: {e}")
+    # ==========================================
     
     # 1. 計算多重均線
     df['MA5'] = df['Close'].rolling(window=5).mean()
@@ -110,16 +180,18 @@ def fetch_and_calculate_indicators(stock_id, timeframe="1d"): # 🌟 接收 time
     df['K'] = k_list
     df['D'] = d_list
     
-    # 3. 執行自適應卡爾曼濾波去噪價格
-    df['Kalman_Price'] = apply_adaptive_kalman_filter(df['Close'])
+    # 3. 執行雙軌卡爾曼濾波去噪價格
+    kf_results = run_kalman_strategies(df['Close'])
+    df['TVKF'] = kf_results['TVKF']
+    df['TIKF'] = kf_results['TIKF']
     
-    # 4. 計算 Z-Score 乖離率 (找尋超跌點)
-    df['Residual'] = df['Close'] - df['Kalman_Price']
+    # 4. 計算 Z-Score 乖離率 (用反應較靈敏的 TVKF 來計算殘差)
+    df['Residual'] = df['Close'] - df['TVKF']
     rolling_std = df['Close'].rolling(window=20).std().bfill()
     df['Z_Score'] = df['Residual'] / rolling_std
     
-    # 5. 買進策略邏輯
-    trend_buy = (df['Close'] > df['Kalman_Price']) & (df['K'] > df['D'])
+    # 5. 買進策略邏輯 (突破 TVKF 趨勢即買進)
+    trend_buy = (df['Close'] > df['TVKF']) & (df['K'] > df['D'])
     oversold_buy = (df['Z_Score'] < -2.0)
     df['Signal'] = trend_buy | oversold_buy 
     
@@ -413,16 +485,24 @@ def get_stocks():
     cursor = conn.cursor()
     
     try:
-        # 直接把 STOCK 表裡面的代號、名稱、現價全部撈出來
+        # 1. 撈取資料庫中的個股報價
         cursor.execute("SELECT stock_id, stock_name, current_price FROM STOCK")
-        
-        # 轉換成 JSON 格式的陣列
         stocks = [dict(row) for row in cursor.fetchall()]
         
+        # 🌟 2. 關鍵新增：透過 yfinance 抓取真實的台灣加權指數 (^TWII)
+        try:
+            taiex_ticker = yf.Ticker("^TWII")
+            # 取得最新一筆即時報價
+            real_taiex = round(taiex_ticker.fast_info.last_price, 2)
+        except Exception as e:
+            print(f"[系統警告] 無法抓取大盤指數: {e}")
+            real_taiex = "---" # 網路異常時的防呆顯示
+            
         return jsonify({
             "status": "success", 
             "message": "大盤行情獲取成功",
-            "data": stocks
+            "data": stocks,
+            "taiex": real_taiex  # 將真實大盤指數打包傳給前端！
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -510,7 +590,8 @@ def stock_analysis():
             "d_val": round(float(row['D']), 2) if not pd.isna(row['D']) else None,
             
             # ✅ 修復：加上 pd.isna 判斷，避免空值造成 float() 當機
-            "kalman": round(float(row['Kalman_Price']), 2) if not pd.isna(row['Kalman_Price']) else None,
+            "tvkf": round(float(row['TVKF']), 2) if not pd.isna(row['TVKF']) else None,
+            "tikf": round(float(row['TIKF']), 2) if not pd.isna(row['TIKF']) else None,
             "z_score": round(float(row['Z_Score']), 2) if not pd.isna(row['Z_Score']) else 0,
             
             # ✅ 修復：刪除重複的 kalman 與 signal，只留一個
@@ -528,11 +609,20 @@ def stock_analysis():
     except:
         real_stock_name = str(stock_id) # 萬一網路異常，至少顯示代號
         
+    # ... (前面的 yfinance 抓真實名稱邏輯維持不變) ...
+        
     # 同步把最新的真實價格更新進你的 SQLITE STOCK 資料庫
     latest_close = chart_data[-1]['close']
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE STOCK SET current_price = ? WHERE stock_id = ?", (latest_close, stock_id))
+    
+    # 🌟 關鍵升級：判斷是否為新標的。若存在則更新 (UPDATE)，若不存在則自動建檔 (INSERT)！
+    cursor.execute("SELECT stock_id FROM STOCK WHERE stock_id = ?", (stock_id,))
+    if cursor.fetchone():
+        cursor.execute("UPDATE STOCK SET current_price = ? WHERE stock_id = ?", (latest_close, stock_id))
+    else:
+        cursor.execute("INSERT INTO STOCK (stock_id, stock_name, current_price) VALUES (?, ?, ?)", (stock_id, real_stock_name, latest_close))
+        
     conn.commit()
     conn.close()
 
@@ -540,7 +630,7 @@ def stock_analysis():
     return jsonify({
         "status": "success",
         "stock_id": stock_id,
-        "stock_name": real_stock_name, # 👈 新增這行：真實名稱
+        "stock_name": real_stock_name,
         "latest_signal": chart_data[-1]['signal'],
         "data": chart_data
     })
