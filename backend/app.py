@@ -1,6 +1,7 @@
 import sqlite3
 import random
 import yfinance as yf
+import twstock
 import pandas as pd
 import numpy as np
 from flask import Flask, request, jsonify
@@ -15,6 +16,13 @@ def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row # 讓回傳的資料可以用字典的方式讀取
     return conn
+
+def get_chinese_name(stock_id):
+    """ 利用 twstock 進行代號對應，若查無結果則保留原代號 """
+    code = twstock.codes.get(str(stock_id))
+    if code:
+        return code.name
+    return str(stock_id) # 如果真的查不到，至少顯示代號
 
 
 # ==========================================
@@ -604,8 +612,8 @@ def stock_analysis():
         if 'shortName' not in stock_info: # 如果上市找不到，改找上櫃
             stock_info = yf.Ticker(f"{stock_id}.TWO").info
         
-        # 從字典中提取名稱，若沒有則預設回傳代號
-        real_stock_name = stock_info.get('shortName', stock_info.get('longName', str(stock_id)))
+       # 🌟 一行搞定所有中文名稱需求！
+        real_stock_name = get_chinese_name(stock_id)
     except:
         real_stock_name = str(stock_id) # 萬一網路異常，至少顯示代號
         
@@ -633,7 +641,31 @@ def stock_analysis():
         "stock_name": real_stock_name,
         "latest_signal": chart_data[-1]['signal'],
         "data": chart_data
-    })
+    }) 
+
+# ==========================================
+# 🌟 終極大魔王：ADSP 智慧量化選股雷達 API (極速資料庫版)
+# ==========================================
+@app.route('/api/screener', methods=['GET'])
+def market_screener():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # 直接從資料庫把剛剛背景程式算好的結果撈出來
+        # 加上防呆，先確保 SCREENER_SIGNALS 表格真的存在
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='SCREENER_SIGNALS'")
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "尚未執行背景掃描程式，請先於終端機執行 python daily_scanner.py"}), 400
+
+        cursor.execute("SELECT stock_id, stock_name, close_price, signal, color FROM SCREENER_SIGNALS ORDER BY stock_id")
+        results = [dict(row) for row in cursor.fetchall()]
+        
+        return jsonify({"status": "success", "data": results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

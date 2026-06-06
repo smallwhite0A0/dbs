@@ -196,7 +196,7 @@ async function getStocks() {
             // 注入跑馬燈畫面
             const tickerContainer = document.getElementById('dynamic-ticker');
             if (tickerContainer) {
-                tickerContainer.innerHTML = tickerHtml + `<span class="ticker-item" style="color: #fbbf24; font-weight: bold; margin-right: 25px;">※ 系統公告：期末專案大成功！台股交易系統即時連線中 ※</span>`;
+                tickerContainer.innerHTML = tickerHtml + `<span class="ticker-item" style="color: #fbbf24; font-weight: bold; margin-right: 25px;"></span>`;
             }
 
             // ==========================================
@@ -634,6 +634,14 @@ function openTechModal() {
     
     document.getElementById('tech-modal').classList.remove('hidden');
     
+// ==========================================
+    // 🌟 新增：動態抓取目前的股票代號與名稱並顯示在標題
+    // ==========================================
+    const currentStockId = document.getElementById('order-stock-id').value;
+    const currentStockName = document.getElementById('order-stock-name').innerText;
+    document.getElementById('modal-stock-title').innerText = `${currentStockName} (${currentStockId})`;
+    // ==========================================
+
     const checkboxes = document.querySelectorAll('#tech-modal input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
     
@@ -661,6 +669,11 @@ function openTechModal() {
         signalText = "📉 停損/停利訊號：雙線死亡交叉 (動能衰退，建議出場！)";
         signalColor = "#10b981"; 
     } 
+    // 🌟【新增！複合情境】黃金交叉發生，但短線指標已經過熱
+    else if (prev.tvkf <= prev.tikf && curr.tvkf > curr.tikf && (curr.k_val >= 80 || curr.z_score >= 1.5)) {
+        signalText = "🚀⚠️ 黃金交叉但過熱：趨勢剛翻多，但短線漲幅過大，建議等回檔再進場！";
+        signalColor = "#f59e0b"; // 醒目的橘黃色警告
+    }
     // 🌟【新增！防呆 C】防追高機制：漲幅過大，乖離或 KD 過熱
     else if (curr.tvkf > curr.tikf && (curr.z_score >= 1.5 || curr.k_val >= 80)) {
         signalText = "⚠️ 追高風險：指標嚴重過熱，已錯過最佳買點，請觀望等回檔！";
@@ -922,4 +935,58 @@ function toggleIndicator(seriesName) {
         // 這個指令會根據該線條目前的狀態，自動隱藏或顯示它
         kChart.toggleSeries(seriesName);
     }
+}
+
+// ==========================================
+// 📡 ADSP 智慧量化選股雷達
+// ==========================================
+async function runSmartScreener() {
+    const modal = document.getElementById('screener-modal');
+    const loading = document.getElementById('screener-loading');
+    const table = document.getElementById('screener-table');
+    const list = document.getElementById('screener-list');
+
+    // 1. 打開視窗，顯示載入中動畫，隱藏舊表格
+    modal.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    table.classList.add('hidden');
+    list.innerHTML = "";
+
+    try {
+        // 2. 呼叫後端進行全市場卡爾曼掃描
+        const response = await fetch(`${API_BASE_URL}/api/screener`, { method: 'GET' });
+        const result = await response.json();
+
+        if (response.ok && result.status === "success") {
+            // 3. 隱藏載入中，顯示表格
+            loading.classList.add('hidden');
+            table.classList.remove('hidden');
+
+            if (result.data.length === 0) {
+                list.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #64748b;">目前市場無任何觸發策略之標的，請持續觀望。</td></tr>`;
+                return;
+            }
+
+            // 4. 渲染找到的黃金標的
+            result.data.forEach(item => {
+                list.innerHTML += `
+                    <tr>
+                        <td style="padding: 12px 8px; font-weight: bold; color: #1e293b;">${item.stock_name} <br><span style="font-size: 0.8rem; color: #64748b;">${item.stock_id}</span></td>
+                        <td style="padding: 12px 8px; font-weight: bold;">$${item.close.toFixed(2)}</td>
+                        <td style="padding: 12px 8px;"><span style="background-color: ${item.color}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem;">${item.signal}</span></td>
+                        <td style="padding: 12px 8px;">
+                            <button onclick="closeScreenerModal(); jumpToOrder('${item.stock_id}')" style="background-color: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold;">快捷下單 ➔</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    } catch (error) {
+        console.error("選股雷達連線錯誤:", error);
+        loading.innerHTML = "<p style='color: #ef4444;'>❌ 掃描失敗，請確認後端伺服器是否正常連線。</p>";
+    }
+}
+
+function closeScreenerModal() {
+    document.getElementById('screener-modal').classList.add('hidden');
 }

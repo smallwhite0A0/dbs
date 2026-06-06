@@ -59,8 +59,11 @@
 
            <div id="content-market" class="tab-content">
     
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin-top: 10px;">加權指數：<span id="taiex-index" style="color: #ef4444;">---</span></h3>
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h3 style="margin-top: 10px; margin-bottom: 10px;">加權指數：<span id="taiex-index" style="color: #ef4444;">---</span></h3>
+            <button onclick="runSmartScreener()" style="background-color: #8b5cf6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3);">📡 啟動量化選股雷達</button>
+        </div>
         <button onclick="openAllStocksModal()" style="padding: 6px 12px; font-size: 0.85rem; background-color: #475569; color: white; border-radius: 4px; border: none; cursor: pointer;">詳細報價</button>
     </div>
 
@@ -190,7 +193,9 @@
     <div id="tech-modal" class="hidden" style="position: fixed; top: 5%; left: 50%; transform: translateX(-50%); width: 90%; max-width: 800px; max-height: 90vh; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1050; overflow-y: auto;">
     
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
-        <h3 style="margin: 0; color: #1e293b;">📊 技術分析與 ADSP 預測</h3>
+        <h3 style="margin: 0; color: #1e293b;">
+            📊 技術分析與 ADSP 預測 - <span id="modal-stock-title" style="color: #2563eb; font-weight: bold;">標的載入中...</span>
+        </h3>
         <button onclick="closeTechModal()" style="background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer;">關閉 (X)</button>
     </div>
 
@@ -244,6 +249,31 @@
 
     <div id="kline-chart" style="width: 100%; min-height: 420px; background: #ffffff; margin-bottom: 10px;"></div>
 </div>
+
+<div id="screener-modal" class="hidden" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%); width: 85%; max-width: 700px; max-height: 80vh; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1100; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+            <h2 style="margin: 0; color: #1e293b;">📡 ADSP 智慧量化選股雷達</h2>
+            <button onclick="closeScreenerModal()" style="background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer;">關閉 (X)</button>
+        </div>
+        
+        <div id="screener-loading" class="hidden" style="text-align: center; padding: 30px; font-size: 1.1rem; color: #64748b; font-weight: bold;">
+            <p>⏳ 系統正在掃描全市場標的並執行卡爾曼濾波矩陣運算...</p>
+            <p style="font-size: 0.9rem; font-weight: normal;">(根據資料庫股票數量，這可能需要 5 ~ 15 秒鐘，請稍候)</p>
+        </div>
+
+        <table id="screener-table" style="width: 100%; text-align: left;">
+            <thead>
+                <tr>
+                    <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">股票</th>
+                    <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">最新收盤價</th>
+                    <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">觸發策略</th>
+                    <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="screener-list">
+                </tbody>
+        </table>
+    </div>
     
 </body>
 </html>
